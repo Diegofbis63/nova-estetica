@@ -1,0 +1,4 @@
+project_id = "pnlosqkasitwbaxvyknz"
+
+[functions.aura-chat]
+verify_jwt = false
