@@ -9,20 +9,79 @@ const corsHeaders = {
 
 const ORG_ID = "00000000-0000-0000-0000-000000000000";
 
-const SYSTEM_PROMPT = `Eres Aura AI, el Agente Vendedor Autónomo de élite. Tu objetivo es calificar leads, responder sus dudas y agendar citas eficientemente.
+const SYSTEM_PROMPT = `Eres Aura, la asistente virtual de **NOVA Estética** — Centro de Belleza Premium en Buenos Aires.
 
-Tono: Profesional, persuasivo, premium (Liquid Luxury).
-Idioma: Responde siempre en el idioma del usuario.
+## DATOS DEL NEGOCIO
+- Nombre: NOVA Estética
+- Dirección: Av. Libertador 1234, Buenos Aires, Argentina
+- Teléfono: +54 11 5555-1234
+- Instagram: @nova.estetica
+- Horario: Lunes a Sábado de 9:00 a 20:00. Domingos cerrado.
+- Web: nova-estetica.com
 
-Tu workflow de ventas:
-1. Saluda y pregunta cómo puedes ayudar
-2. Califica el interés del lead con preguntas estratégicas
-3. Cuando el lead muestre interés, verifica disponibilidad con check_availability
-4. Agenda la cita con book_appointment
-5. Actualiza el intent_score con calculate_intent
+## SERVICIOS Y PRECIOS
+1. **Limpieza Facial Profunda** — $45 USD (60 min)
+   Incluye: análisis de piel, extracción de comedones, exfoliación enzimática, mascarilla revitalizante y protector solar.
+   Ideal para: pieles mixtas, con impurezas o falta de luminosidad.
 
-Siempre sé conciso, directo y enfocado en cerrar la venta. Usa emojis moderadamente para dar calidez.
-Cuando uses herramientas, informa al usuario del resultado de forma natural.`;
+2. **Ácido Hialurónico** — $280 USD (45 min)
+   Incluye: consulta previa, aplicación de relleno dérmico premium (Teoxane/Juvederm).
+   Zonas: labios, pómulos, surcos nasogenianos, ojeras.
+   Duración del resultado: 8-12 meses.
+
+3. **Botox Preventivo** — $220 USD (30 min)
+   Incluye: evaluación facial, aplicación de toxina botulínica (Allergan/Dysport).
+   Zonas: frente, entrecejo, patas de gallo.
+   Resultado visible en 3-5 días. Duración: 4-6 meses.
+
+4. **Peeling Químico** — $95 USD (45 min)
+   Tipos: glicólico, mandélico o combinado según tipo de piel.
+   Beneficios: renueva la piel, reduce manchas, unifica el tono.
+   Se recomienda pack de 3 sesiones ($250 USD).
+
+5. **Microblading de Cejas** — $180 USD (90 min)
+   Técnica pelo a pelo hiperrealista con pigmentos premium.
+   Incluye retoque gratuito a los 30 días.
+   Duración: 12-18 meses.
+
+6. **Masaje Relajante** — $55 USD (60 min)
+   Masaje descontracturante con aromaterapia y piedras calientes.
+   Opción: masaje de 90 min por $75 USD.
+
+## PROMOCIONES VIGENTES
+- Primera visita: 15% OFF en cualquier tratamiento
+- Pack Glow (Limpieza + Peeling): $120 USD (ahorro de $20)
+- Pack Anti-Age (Botox + Hialurónico): $450 USD (ahorro de $50)
+- Referidos: trae a una amiga y ambas reciben 10% OFF
+
+## MÉTODOS DE PAGO
+Efectivo, tarjeta de débito/crédito (Visa, Mastercard, Amex), MercadoPago, transferencia bancaria. Se acepta pago en cuotas (3 y 6 sin interés).
+
+## EQUIPO
+- Dra. Camila Rossi — Directora Médica, especialista en medicina estética (12 años de experiencia)
+- Lic. Sofía Méndez — Cosmiatra certificada, especialista en skincare avanzado
+- Lic. Martina López — Masajista terapéutica certificada
+
+## TU ROL Y COMPORTAMIENTO
+- Eres amable, profesional y persuasiva. Tono premium pero cálido.
+- Responde SIEMPRE en el idioma del usuario.
+- Tu objetivo principal: **agendar citas** y **calificar leads**.
+- Pregunta el nombre y email del cliente para poder agendar.
+- Si el cliente muestra interés, ofrece las promociones vigentes.
+- Cuando un cliente pida agendar, verifica disponibilidad y luego reserva.
+- Sé concisa: respuestas de 2-4 oraciones máximo, salvo que pidan detalle.
+- Si preguntan algo fuera de estética, redirige amablemente al tema.
+- Usa emojis con moderación para dar calidez (✨💆‍♀️📅).
+- Cuando uses herramientas, comunica el resultado de forma natural y amable.
+
+## WORKFLOW DE VENTAS
+1. Saluda y pregunta en qué tratamiento está interesado/a
+2. Recomienda según sus necesidades
+3. Ofrece promociones si aplican
+4. Pide nombre y email para agendar
+5. Verifica disponibilidad con check_availability
+6. Confirma la cita con book_appointment
+7. Actualiza el intent score con calculate_intent`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -38,17 +97,12 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Check if the last user message contains tool-like intent
-    const lastUserMsg = [...messages].reverse().find((m: any) => m.role === "user");
-    const userText = lastUserMsg?.content?.toLowerCase() || "";
-
-    // Tool definitions for the AI
     const tools = [
       {
         type: "function",
         function: {
           name: "check_availability",
-          description: "Verifica la disponibilidad de citas en una fecha específica",
+          description: "Verifica la disponibilidad de citas en una fecha específica en NOVA Estética",
           parameters: {
             type: "object",
             properties: {
@@ -63,14 +117,14 @@ serve(async (req) => {
         type: "function",
         function: {
           name: "book_appointment",
-          description: "Agenda una cita para un cliente",
+          description: "Agenda una cita para un cliente en NOVA Estética",
           parameters: {
             type: "object",
             properties: {
               client_name: { type: "string", description: "Nombre del cliente" },
               contact_email: { type: "string", description: "Email del cliente" },
               date_time: { type: "string", description: "Fecha y hora ISO 8601" },
-              service_type: { type: "string", description: "Tipo de servicio" },
+              service_type: { type: "string", description: "Tipo de servicio/tratamiento" },
             },
             required: ["client_name", "contact_email", "date_time", "service_type"],
             additionalProperties: false,
@@ -103,7 +157,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
         tools,
         stream: false,
@@ -113,14 +167,12 @@ serve(async (req) => {
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: "Demasiadas solicitudes. Intenta de nuevo en unos segundos." }), {
-          status: 429,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       if (aiResponse.status === 402) {
         return new Response(JSON.stringify({ error: "Créditos agotados." }), {
-          status: 402,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
       const errText = await aiResponse.text();
@@ -144,12 +196,26 @@ serve(async (req) => {
           case "check_availability": {
             const { data: rows } = await supabase
               .from("appointments")
-              .select("date_time")
+              .select("date_time, service_type")
               .eq("organization_id", ORG_ID)
               .gte("date_time", `${args.date}T00:00:00`)
               .lte("date_time", `${args.date}T23:59:59`)
               .neq("status", "cancelled");
-            result = { available: true, occupied_slots: rows || [] };
+            
+            const occupiedSlots = (rows || []).map((r: any) => ({
+              time: new Date(r.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+              service: r.service_type,
+            }));
+            
+            result = {
+              date: args.date,
+              available: true,
+              occupied_slots: occupiedSlots,
+              business_hours: "9:00 - 20:00",
+              note: occupiedSlots.length > 0
+                ? `Hay ${occupiedSlots.length} cita(s) ese día, pero hay más horarios disponibles.`
+                : "No hay citas ese día, todos los horarios están disponibles.",
+            };
             break;
           }
           case "book_appointment": {
@@ -164,7 +230,7 @@ serve(async (req) => {
             let leadId: string;
             if (existingLead) {
               leadId = existingLead.id;
-              await supabase.from("leads").update({ client_name: args.client_name }).eq("id", leadId);
+              await supabase.from("leads").update({ client_name: args.client_name, status: "contacted" }).eq("id", leadId);
             } else {
               const { data: newLead } = await supabase
                 .from("leads")
@@ -172,6 +238,7 @@ serve(async (req) => {
                   organization_id: ORG_ID,
                   client_name: args.client_name,
                   contact_info: { email: args.contact_email },
+                  status: "new",
                 })
                 .select("id")
                 .single();
@@ -185,15 +252,23 @@ serve(async (req) => {
               service_type: args.service_type,
               status: "scheduled",
             });
-            result = { success: true, message: `Cita agendada para ${args.client_name}` };
+            result = { success: true, message: `Cita agendada: ${args.service_type} para ${args.client_name} el ${new Date(args.date_time).toLocaleDateString("es-AR")} a las ${new Date(args.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}` };
             break;
           }
           case "calculate_intent": {
-            await supabase
+            const { data: lead } = await supabase
               .from("leads")
-              .update({ intent_score: args.intent_score })
+              .select("id")
               .eq("organization_id", ORG_ID)
-              .eq("contact_info->>email", args.contact_email);
+              .eq("contact_info->>email", args.contact_email)
+              .maybeSingle();
+            
+            if (lead) {
+              await supabase
+                .from("leads")
+                .update({ intent_score: args.intent_score, status: args.intent_score >= 70 ? "qualified" : "contacted" })
+                .eq("id", lead.id);
+            }
             result = { success: true, score: args.intent_score };
             break;
           }
@@ -208,7 +283,7 @@ serve(async (req) => {
         });
       }
 
-      // Second AI call with tool results - stream this one
+      // Second AI call with tool results - stream
       const followUp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
         headers: {
@@ -216,7 +291,7 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-3-flash-preview",
+          model: "google/gemini-2.5-flash",
           messages: [
             { role: "system", content: SYSTEM_PROMPT },
             ...messages,
@@ -239,7 +314,6 @@ serve(async (req) => {
     }
 
     // No tool calls - stream directly
-    // Re-do the call with streaming
     const streamResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -247,7 +321,7 @@ serve(async (req) => {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "google/gemini-3-flash-preview",
+        model: "google/gemini-2.5-flash",
         messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
         stream: true,
       }),
