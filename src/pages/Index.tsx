@@ -1,5 +1,6 @@
+import { Link } from "react-router-dom";
 import AuraChat from "@/components/AuraChat";
-import { Sparkles, Shield, Zap, Brain } from "lucide-react";
+import { Sparkles, Shield, Zap, Brain, LogIn } from "lucide-react";
 
 const Index = () => {
   return (
@@ -32,10 +33,13 @@ const Index = () => {
               Aura AI
             </span>
           </div>
-          <div className="flex items-center gap-2 text-[10px] font-mono text-cyan-500/40 uppercase tracking-widest">
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-            System Active
-          </div>
+          <Link
+            to="/auth"
+            className="flex items-center gap-2 text-xs font-mono text-cyan-400/70 hover:text-cyan-300 border border-cyan-500/20 rounded-lg px-3 py-1.5 hover:bg-cyan-500/5 transition-all"
+          >
+            <LogIn className="w-3.5 h-3.5" />
+            Dashboard
+          </Link>
         </header>
 
         {/* Hero */}
