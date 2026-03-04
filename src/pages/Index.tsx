@@ -1,9 +1,12 @@
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import AuraChat from "@/components/AuraChat";
 import ServiceCard from "@/components/landing/ServiceCard";
 import BeforeAfterGallery from "@/components/landing/BeforeAfterGallery";
+import ScrollReveal from "@/components/landing/ScrollReveal";
 import { Sparkles, Shield, Zap, Brain, LogIn, Star, Clock, MapPin, Phone, Instagram, ChevronRight } from "lucide-react";
 
+import heroBg from "@/assets/hero-bg.jpg";
 import serviceFacial from "@/assets/service-facial.jpg";
 import serviceHialuronico from "@/assets/service-hialuronico.jpg";
 import serviceBotox from "@/assets/service-botox.jpg";
@@ -80,46 +83,66 @@ const Index = () => {
         </header>
 
         {/* Hero */}
-        <section className="text-center px-4 pt-10 pb-14">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/5 mb-6">
-            <Star className="w-3 h-3 text-cyan-400" />
-            <span className="text-[11px] font-mono text-cyan-300/70 uppercase tracking-wider">
-              +500 clientes satisfechos — ⭐ 4.9 en Google
-            </span>
+        <section className="relative text-center px-4 pt-10 pb-14 overflow-hidden">
+          <div className="absolute inset-0 -z-10">
+            <img src={heroBg} alt="" className="w-full h-full object-cover opacity-20" />
+            <div className="absolute inset-0 bg-gradient-to-b from-[#030712]/60 via-[#030712]/80 to-[#030712]" />
           </div>
-          <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-5">
-            <span className="bg-gradient-to-b from-white via-cyan-100 to-cyan-300/60 bg-clip-text text-transparent">
-              Tu Belleza,
-            </span>
-            <br />
-            <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Nuestra Ciencia
-            </span>
-          </h1>
-          <p className="text-sm md:text-base text-zinc-400 max-w-xl mx-auto leading-relaxed mb-8">
-            Centro de estética avanzada con los mejores profesionales y tecnología de última generación.
-            <br className="hidden md:block" />
-            Agenda tu cita en segundos con nuestra asistente virtual.
-          </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <a
-              href="#chat"
-              className="inline-flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-[0_0_25px_rgba(6,182,212,0.3)] hover:shadow-[0_0_35px_rgba(6,182,212,0.5)] text-sm"
-            >
-              Agendar Cita con IA
-              <ChevronRight className="w-4 h-4" />
-            </a>
-            <a
-              href="#servicios"
-              className="inline-flex items-center gap-2 border border-zinc-700 hover:border-cyan-500/30 text-zinc-300 hover:text-white px-6 py-3 rounded-xl transition-all text-sm"
-            >
-              Ver Servicios
-            </a>
-          </div>
+
+          <ScrollReveal>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/5 mb-6">
+              <Star className="w-3 h-3 text-cyan-400" />
+              <span className="text-[11px] font-mono text-cyan-300/70 uppercase tracking-wider">
+                +500 clientes satisfechos — ⭐ 4.9 en Google
+              </span>
+            </div>
+          </ScrollReveal>
+
+          <ScrollReveal delay={0.1}>
+            <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-5">
+              <span className="bg-gradient-to-b from-white via-cyan-100 to-cyan-300/60 bg-clip-text text-transparent">
+                Tu Belleza,
+              </span>
+              <br />
+              <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
+                Nuestra Ciencia
+              </span>
+            </h1>
+          </ScrollReveal>
+
+          <ScrollReveal delay={0.2}>
+            <p className="text-sm md:text-base text-zinc-400 max-w-xl mx-auto leading-relaxed mb-8">
+              Centro de estética avanzada con los mejores profesionales y tecnología de última generación.
+              <br className="hidden md:block" />
+              Agenda tu cita en segundos con nuestra asistente virtual.
+            </p>
+          </ScrollReveal>
+
+          <ScrollReveal delay={0.3}>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <motion.a
+                href="#chat"
+                className="inline-flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-[0_0_25px_rgba(6,182,212,0.3)] hover:shadow-[0_0_35px_rgba(6,182,212,0.5)] text-sm"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                Agendar Cita con IA
+                <ChevronRight className="w-4 h-4" />
+              </motion.a>
+              <motion.a
+                href="#servicios"
+                className="inline-flex items-center gap-2 border border-zinc-700 hover:border-cyan-500/30 text-zinc-300 hover:text-white px-6 py-3 rounded-xl transition-all text-sm"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                Ver Servicios
+              </motion.a>
+            </div>
+          </ScrollReveal>
         </section>
 
         {/* Info bar */}
-        <section className="px-4 pb-12">
+        <ScrollReveal className="px-4 pb-12">
           <div className="max-w-4xl mx-auto flex flex-wrap justify-center gap-6 text-zinc-500 text-xs font-mono">
             <div className="flex items-center gap-2">
               <MapPin className="w-3.5 h-3.5 text-cyan-500/50" />
@@ -138,29 +161,35 @@ const Index = () => {
               @nova.estetica
             </div>
           </div>
-        </section>
+        </ScrollReveal>
 
         {/* Services */}
         <section id="servicios" className="px-4 md:px-8 pb-16">
           <div className="max-w-5xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-2xl md:text-3xl font-bold mb-2 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                Nuestros Servicios
-              </h2>
-              <p className="text-xs text-zinc-500 font-mono uppercase tracking-widest">Tratamientos premium con resultados garantizados</p>
-            </div>
+            <ScrollReveal>
+              <div className="text-center mb-8">
+                <h2 className="text-2xl md:text-3xl font-bold mb-2 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+                  Nuestros Servicios
+                </h2>
+                <p className="text-xs text-zinc-500 font-mono uppercase tracking-widest">Tratamientos premium con resultados garantizados</p>
+              </div>
+            </ScrollReveal>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {services.map((s, i) => (
-                <ServiceCard key={i} {...s} />
+                <ScrollReveal key={i} delay={i * 0.08}>
+                  <ServiceCard {...s} />
+                </ScrollReveal>
               ))}
             </div>
           </div>
         </section>
 
         {/* Before/After Gallery */}
-        <section id="galeria">
-          <BeforeAfterGallery />
-        </section>
+        <ScrollReveal>
+          <section id="galeria">
+            <BeforeAfterGallery />
+          </section>
+        </ScrollReveal>
 
         {/* Why us */}
         <section className="px-4 md:px-8 pb-16">
@@ -170,16 +199,15 @@ const Index = () => {
               { icon: Shield, title: "Productos Premium", desc: "Trabajamos con marcas líderes: Allergan, Teoxane, SkinCeuticals." },
               { icon: Zap, title: "Agendamiento con IA", desc: "Reserva tu cita 24/7 con nuestra asistente virtual impulsada por IA." },
             ].map((f, i) => (
-              <div
-                key={i}
-                className="p-6 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-sm hover:border-cyan-500/20 transition-all duration-500 group"
-              >
-                <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-4 group-hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] transition-all">
-                  <f.icon className="w-5 h-5 text-cyan-400" />
+              <ScrollReveal key={i} delay={i * 0.1}>
+                <div className="p-6 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-sm hover:border-cyan-500/20 transition-all duration-500 group">
+                  <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-4 group-hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] transition-all">
+                    <f.icon className="w-5 h-5 text-cyan-400" />
+                  </div>
+                  <h3 className="text-sm font-semibold text-white mb-2 tracking-wide">{f.title}</h3>
+                  <p className="text-xs text-zinc-500 leading-relaxed">{f.desc}</p>
                 </div>
-                <h3 className="text-sm font-semibold text-white mb-2 tracking-wide">{f.title}</h3>
-                <p className="text-xs text-zinc-500 leading-relaxed">{f.desc}</p>
-              </div>
+              </ScrollReveal>
             ))}
           </div>
         </section>
@@ -187,35 +215,41 @@ const Index = () => {
         {/* Testimonials */}
         <section className="px-4 md:px-8 pb-16">
           <div className="max-w-4xl mx-auto">
-            <h2 className="text-xl font-bold text-center mb-6 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-              Lo que dicen nuestros clientes
-            </h2>
+            <ScrollReveal>
+              <h2 className="text-xl font-bold text-center mb-6 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
+                Lo que dicen nuestros clientes
+              </h2>
+            </ScrollReveal>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {testimonials.map((t, i) => (
-                <div key={i} className="p-5 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-sm">
-                  <div className="flex gap-0.5 mb-3">
-                    {Array.from({ length: t.rating }).map((_, j) => (
-                      <Star key={j} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                    ))}
+                <ScrollReveal key={i} delay={i * 0.1}>
+                  <div className="p-5 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-sm">
+                    <div className="flex gap-0.5 mb-3">
+                      {Array.from({ length: t.rating }).map((_, j) => (
+                        <Star key={j} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
+                      ))}
+                    </div>
+                    <p className="text-xs text-zinc-400 leading-relaxed mb-3 italic">"{t.text}"</p>
+                    <p className="text-[11px] text-cyan-400/70 font-semibold">{t.name}</p>
                   </div>
-                  <p className="text-xs text-zinc-400 leading-relaxed mb-3 italic">"{t.text}"</p>
-                  <p className="text-[11px] text-cyan-400/70 font-semibold">{t.name}</p>
-                </div>
+                </ScrollReveal>
               ))}
             </div>
           </div>
         </section>
 
         {/* Chat CTA */}
-        <section id="chat" className="px-4 pb-6">
-          <div className="text-center mb-6">
-            <h2 className="text-xl md:text-2xl font-bold mb-2 bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
-              Agenda tu cita ahora
-            </h2>
-            <p className="text-xs text-zinc-500">Habla con nuestra asistente virtual. Disponible 24/7.</p>
-          </div>
-          <AuraChat />
-        </section>
+        <ScrollReveal>
+          <section id="chat" className="px-4 pb-6">
+            <div className="text-center mb-6">
+              <h2 className="text-xl md:text-2xl font-bold mb-2 bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
+                Agenda tu cita ahora
+              </h2>
+              <p className="text-xs text-zinc-500">Habla con nuestra asistente virtual. Disponible 24/7.</p>
+            </div>
+            <AuraChat />
+          </section>
+        </ScrollReveal>
 
         {/* Footer */}
         <footer className="text-center py-8 border-t border-zinc-900 space-y-2">
