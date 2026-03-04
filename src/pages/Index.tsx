@@ -1,14 +1,23 @@
 import { Link } from "react-router-dom";
 import AuraChat from "@/components/AuraChat";
+import ServiceCard from "@/components/landing/ServiceCard";
+import BeforeAfterGallery from "@/components/landing/BeforeAfterGallery";
 import { Sparkles, Shield, Zap, Brain, LogIn, Star, Clock, MapPin, Phone, Instagram, ChevronRight } from "lucide-react";
 
+import serviceFacial from "@/assets/service-facial.jpg";
+import serviceHialuronico from "@/assets/service-hialuronico.jpg";
+import serviceBotox from "@/assets/service-botox.jpg";
+import servicePeeling from "@/assets/service-peeling.jpg";
+import serviceMicroblading from "@/assets/service-microblading.jpg";
+import serviceMasaje from "@/assets/service-masaje.jpg";
+
 const services = [
-  { name: "Limpieza Facial Profunda", price: "$45", duration: "60 min", desc: "Extracción, exfoliación enzimática y mascarilla revitalizante." },
-  { name: "Ácido Hialurónico", price: "$280", duration: "45 min", desc: "Relleno dérmico premium para labios, pómulos y surcos." },
-  { name: "Botox Preventivo", price: "$220", duration: "30 min", desc: "Toxina botulínica para líneas de expresión y frente." },
-  { name: "Peeling Químico", price: "$95", duration: "45 min", desc: "Renovación celular con ácidos glicólico y mandélico." },
-  { name: "Microblading Cejas", price: "$180", duration: "90 min", desc: "Diseño hiperrealista pelo a pelo con pigmentos premium." },
-  { name: "Masaje Relajante", price: "$55", duration: "60 min", desc: "Masaje descontracturante con aromaterapia y piedras calientes." },
+  { name: "Limpieza Facial Profunda", price: "$45", duration: "60 min", desc: "Extracción, exfoliación enzimática y mascarilla revitalizante.", image: serviceFacial },
+  { name: "Ácido Hialurónico", price: "$280", duration: "45 min", desc: "Relleno dérmico premium para labios, pómulos y surcos.", image: serviceHialuronico },
+  { name: "Botox Preventivo", price: "$220", duration: "30 min", desc: "Toxina botulínica para líneas de expresión y frente.", image: serviceBotox },
+  { name: "Peeling Químico", price: "$95", duration: "45 min", desc: "Renovación celular con ácidos glicólico y mandélico.", image: servicePeeling },
+  { name: "Microblading Cejas", price: "$180", duration: "90 min", desc: "Diseño hiperrealista pelo a pelo con pigmentos premium.", image: serviceMicroblading },
+  { name: "Masaje Relajante", price: "$55", duration: "60 min", desc: "Masaje descontracturante con aromaterapia y piedras calientes.", image: serviceMasaje },
 ];
 
 const testimonials = [
@@ -53,6 +62,9 @@ const Index = () => {
           <div className="flex items-center gap-3">
             <a href="#servicios" className="hidden md:block text-[11px] text-zinc-400 hover:text-cyan-300 transition-colors font-mono uppercase tracking-wider">
               Servicios
+            </a>
+            <a href="#galeria" className="hidden md:block text-[11px] text-zinc-400 hover:text-cyan-300 transition-colors font-mono uppercase tracking-wider">
+              Resultados
             </a>
             <a href="#chat" className="hidden md:block text-[11px] text-zinc-400 hover:text-cyan-300 transition-colors font-mono uppercase tracking-wider">
               Agendar
@@ -139,23 +151,15 @@ const Index = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {services.map((s, i) => (
-                <div
-                  key={i}
-                  className="p-5 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-sm hover:border-cyan-500/20 transition-all duration-500 group"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <h3 className="text-sm font-semibold text-white tracking-wide">{s.name}</h3>
-                    <span className="text-lg font-black bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">{s.price}</span>
-                  </div>
-                  <p className="text-xs text-zinc-500 leading-relaxed mb-3">{s.desc}</p>
-                  <div className="flex items-center gap-2 text-[10px] font-mono text-cyan-500/50">
-                    <Clock className="w-3 h-3" />
-                    {s.duration}
-                  </div>
-                </div>
+                <ServiceCard key={i} {...s} />
               ))}
             </div>
           </div>
+        </section>
+
+        {/* Before/After Gallery */}
+        <section id="galeria">
+          <BeforeAfterGallery />
         </section>
 
         {/* Why us */}
