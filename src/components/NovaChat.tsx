@@ -92,7 +92,11 @@ export default function NovaChat() {
   };
 
   return (
-    <div className="flex flex-col h-[550px] w-full max-w-2xl mx-auto bg-noir-light/80 backdrop-blur-xl border border-cream/10 rounded-2xl overflow-hidden">
+    <div
+      className="flex flex-col h-[550px] w-full max-w-2xl mx-auto bg-noir-light/80 backdrop-blur-xl border border-cream/10 rounded-2xl overflow-hidden"
+      role="region"
+      aria-label="Chat de agendamiento NOVA"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-6 py-4 border-b border-cream/8 bg-gradient-to-r from-gold/5 to-transparent">
         <div className="flex items-center gap-3">
@@ -183,6 +187,7 @@ export default function NovaChat() {
         >
           <input
             className="flex-1 bg-transparent border-none text-cream text-sm px-4 py-1.5 focus:outline-none focus:ring-0 placeholder:text-cream/25 disabled:opacity-50 font-sans"
+            aria-label="Escribe tu mensaje para el asistente"
             value={input}
             placeholder="Escribe tu mensaje..."
             onChange={(e) => setInput(e.target.value)}
@@ -190,6 +195,7 @@ export default function NovaChat() {
           />
           <button
             type="submit"
+            aria-label="Enviar mensaje"
             disabled={isLoading || !input.trim()}
             className="bg-gradient-to-r from-gold to-gold-light disabled:from-cream/10 disabled:to-cream/10 disabled:cursor-not-allowed text-noir p-2.5 rounded-full transition-all active:scale-95"
           >

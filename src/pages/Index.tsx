@@ -7,6 +7,7 @@ import ServicesSection from "@/components/landing/ServicesSection";
 import GallerySection from "@/components/landing/GallerySection";
 import WhyUsSection from "@/components/landing/WhyUsSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
+import FloatingChat from "@/components/FloatingChat";
 import { LogIn, MapPin, Phone, Instagram, Clock, Mail } from "lucide-react";
 
 const Index = () => {
@@ -22,7 +23,7 @@ const Index = () => {
         {/* Header */}
         <header className="flex items-center justify-between px-6 md:px-12 py-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold to-gold-light flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold to-gold-light flex items-center justify-center" role="img" aria-label="Logo de NOVA Estética">
               <span className="text-noir font-serif font-bold text-lg">N</span>
             </div>
             <div>
@@ -129,6 +130,7 @@ const Index = () => {
             </p>
           </div>
         </footer>
+        <FloatingChat />
       </div>
     </div>
   );

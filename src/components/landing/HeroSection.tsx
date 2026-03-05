@@ -7,7 +7,7 @@ const HeroSection = () => {
   return (
     <section className="relative text-center px-4 pt-8 pb-16 overflow-hidden">
       <div className="absolute inset-0 -z-10">
-        <img src={heroBg} alt="" className="w-full h-full object-cover opacity-25" />
+        <img src={heroBg} alt="Interior de la clínica NOVA Estética" className="w-full h-full object-cover opacity-25" />
         <div className="absolute inset-0 bg-gradient-to-b from-noir/50 via-noir/70 to-noir" />
       </div>
 
