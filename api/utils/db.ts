@@ -1,10 +1,10 @@
-import { Pool } from 'pg';
+import { Pool } from '@neondatabase/serverless';
 
 let pool: Pool;
 
 export function getDb() {
     if (!pool) {
-        let connString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+        const connString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
         if (!connString) {
             throw new Error("Missing DATABASE_URL");
         }
