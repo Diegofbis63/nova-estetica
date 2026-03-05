@@ -1,6 +1,4 @@
-export const config = {
-    runtime: 'edge',
-};
+export const config = { runtime: 'edge' };
 
 import { Pool } from '@neondatabase/serverless';
 
@@ -9,295 +7,354 @@ const corsHeaders = {
     "Access-Control-Allow-Headers": "authorization, content-type",
 };
 
-export default async function handler(req: Request) {
-    if (req.method === "OPTIONS") {
-        return new Response(null, { headers: corsHeaders });
+// ─── Typing simulation helper ────────────────────────────────────────────────
+function sseStream(text: string): Response {
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream({
+        async start(controller) {
+            // Split into small chunks to simulate typing
+            const words = text.split(' ');
+            for (let i = 0; i < words.length; i++) {
+                const chunk = (i === 0 ? '' : ' ') + words[i];
+                const data = JSON.stringify({ choices: [{ delta: { content: chunk } }] });
+                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+                // Simulate human typing delay
+                await new Promise(r => setTimeout(r, 28 + Math.random() * 35));
+            }
+            controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+            controller.close();
+        }
+    });
+    return new Response(stream, {
+        headers: { ...corsHeaders, 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' }
+    });
+}
+
+// ─── Conversation state extraction ────────────────────────────────────────────
+interface ConvState {
+    clientName: string | null;
+    clientEmail: string | null;
+    interestedService: string | null;
+    stage: 'greeting' | 'service_inquiry' | 'collecting_info' | 'availability' | 'confirm_booking' | 'booked' | 'general';
+    pendingDate: string | null;
+    pendingTime: string | null;
+    intentScore: number;
+}
+
+function extractState(messages: Array<{ role: string; content: string }>, services: Array<{ title: string; price: number; duration: string; description: string }>): ConvState {
+    const state: ConvState = {
+        clientName: null,
+        clientEmail: null,
+        interestedService: null,
+        stage: 'greeting',
+        pendingDate: null,
+        pendingTime: null,
+        intentScore: 10,
+    };
+
+    const allText = messages.map(m => m.content).join('\n').toLowerCase();
+
+    // Extract email
+    const emailMatch = allText.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i);
+    if (emailMatch) state.clientEmail = emailMatch[0].toLowerCase();
+
+    // Extract name from patterns
+    const namePatterns = [
+        /me llamo ([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)?)/i,
+        /soy ([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)?)/i,
+        /mi nombre es ([a-záéíóúñ]+(?:\s+[a-záéíóúñ]+)?)/i,
+        /i'm ([a-z]+(?:\s+[a-z]+)?)/i,
+        /my name is ([a-z]+(?:\s+[a-z]+)?)/i,
+    ];
+    for (const p of namePatterns) {
+        const m = allText.match(p);
+        if (m) { state.clientName = capitalize(m[1]); break; }
     }
 
-    try {
-        const { messages } = await req.json();
-        const LOVABLE_API_KEY = process.env.LOVABLE_API_KEY;
-        if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
+    // Extract interested service
+    for (const svc of services) {
+        if (allText.includes(svc.title.toLowerCase())) {
+            state.interestedService = svc.title;
+            break;
+        }
+    }
 
+    // Detect date mentions
+    const dateMatch = allText.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+    if (dateMatch) {
+        const year = dateMatch[3] ? (dateMatch[3].length === 2 ? `20${dateMatch[3]}` : dateMatch[3]) : new Date().getFullYear();
+        state.pendingDate = `${year}-${String(dateMatch[2]).padStart(2, '0')}-${String(dateMatch[1]).padStart(2, '0')}`;
+    }
+
+    // Detect time mentions
+    const timeMatch = allText.match(/(\d{1,2})(?::(\d{2}))?\s*(?:hs?|am|pm|:00)?(?:\s|$)/i);
+    if (timeMatch) {
+        const hour = parseInt(timeMatch[1]);
+        const min = timeMatch[2] || '00';
+        if (hour >= 9 && hour <= 20) state.pendingTime = `${String(hour).padStart(2, '0')}:${min}`;
+    }
+
+    // Determine intent score
+    const highIntent = ['agendar', 'reservar', 'turno', 'quiero', 'me interesa', 'precio', 'costo', 'cuánto', 'disponible', 'cuando', 'mañana', 'appointment', 'book'];
+    const medIntent = ['información', 'qué es', 'cómo funciona', 'tratamiento', 'servicio'];
+    for (const kw of highIntent) { if (allText.includes(kw)) state.intentScore = Math.max(state.intentScore, 65); }
+    for (const kw of medIntent) { if (allText.includes(kw)) state.intentScore = Math.max(state.intentScore, 40); }
+    if (state.clientEmail) state.intentScore = Math.max(state.intentScore, 75);
+    if (state.pendingDate) state.intentScore = Math.max(state.intentScore, 85);
+
+    // Determine stage
+    if (messages.length === 0) state.stage = 'greeting';
+    else if (!state.interestedService) state.stage = 'service_inquiry';
+    else if (!state.clientName || !state.clientEmail) state.stage = 'collecting_info';
+    else if (!state.pendingDate) state.stage = 'availability';
+    else if (state.pendingDate && state.clientEmail) state.stage = 'confirm_booking';
+
+    return state;
+}
+
+// ─── Response generator ───────────────────────────────────────────────────────
+function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1).toLowerCase(); }
+
+function pickRandom<T>(arr: T[]): T { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function generateResponse(
+    lastUserMsg: string,
+    state: ConvState,
+    services: Array<{ title: string; price: number; duration: string; description: string }>,
+    availableSlots: string[],
+    bookingResult: { success: boolean; datetime?: string; service?: string } | null
+): string {
+    const msg = lastUserMsg.toLowerCase();
+
+    // ── Booked confirmation
+    if (bookingResult?.success) {
+        const greetings = state.clientName ? `, ${state.clientName}` : '';
+        return pickRandom([
+            `¡Perfecto${greetings}! 🎉 Tu cita para **${bookingResult.service}** quedó agendada para el **${bookingResult.datetime}**. Te vamos a enviar un recordatorio. ¿Hay algo más en lo que pueda ayudarte?`,
+            `¡Listo${greetings}! ✨ Tu turno para **${bookingResult.service}** está confirmado el **${bookingResult.datetime}**. Si necesitás cambiar algo, no dudes en escribirnos. ¡Nos vemos!`,
+            `¡Tu reserva está hecha${greetings}! 📅 **${bookingResult.service}** — **${bookingResult.datetime}**. Cualquier consulta extra, acá estamos. ¡Hasta pronto!`,
+        ]);
+    }
+
+    // ── General greetings
+    if (/^(hola|buenas|hello|hi|hey|buen día|buenos días|buenas tardes|buenas noches)/.test(msg)) {
+        return pickRandom([
+            "¡Hola! 😊 Soy Nova, la asistente de NOVA Estética. ¿En qué puedo ayudarte hoy? ¿Estás buscando información sobre algún tratamiento en particular?",
+            "¡Buenas! Bienvenida a NOVA Estética 💆‍♀️ Soy Nova. ¿Qué tratamiento te está llamando la atención?",
+            "¡Hola! ¿Cómo estás? Soy la asistente de NOVA Estética. ¿Puedo contarte sobre nuestros tratamientos o ayudarte a agendar una cita?",
+        ]);
+    }
+
+    // ── Price inquiries
+    if (/precio|cuánto|costo|vale|cobran|tarifa/.test(msg)) {
+        if (services.length === 0) {
+            return "Nuestros precios varían según el tratamiento. ¿Querés que te cuente cuáles son nuestros servicios disponibles?";
+        }
+        const svcName = state.interestedService;
+        const found = svcName ? services.find(s => s.title.toLowerCase() === svcName.toLowerCase()) : null;
+        if (found) {
+            return pickRandom([
+                `El tratamiento **${found.title}** tiene un valor de **$${found.price}** y dura aproximadamente ${found.duration || 'variable'}. ¡También tenemos 15% OFF en la primera visita! 🌟 ¿Te gustaría agendar una cita?`,
+                `**${found.title}** cuesta **$${found.price}** (duración: ${found.duration || 'aprox. 1 hora'}). Y si es tu primera vez con nosotras, tenés un 15% de descuento. ¿Lo agendamos?`,
+            ]);
+        }
+        const list = services.map(s => `• **${s.title}**: $${s.price}`).join('\n');
+        return `Estos son nuestros tratamientos y precios:\n\n${list}\n\n¿Alguno te interesa en particular? 😊`;
+    }
+
+    // ── Services listing
+    if (/servicio|tratamiento|ofrecen|tienen|qué hacen|catálogo/.test(msg)) {
+        if (services.length === 0) {
+            return "Por el momento estamos actualizando nuestro catálogo de servicios. ¡Podés escribirnos por Instagram @nova.estetica o llamarnos al +54 11 5555-1234 para más info!";
+        }
+        const list = services.map(s => `• **${s.title}** — $${s.price} | ${s.duration || 'consultar'}`).join('\n');
+        return `¡Claro que sí! En NOVA Estética ofrecemos:\n\n${list}\n\n¿Hay alguno que te llame la atención? Con gusto te cuento más detalles ✨`;
+    }
+
+    // ── Availability & booking
+    if (/agendar|reservar|turno|cita|appointment|quiero un|me anoto/.test(msg)) {
+        if (!state.clientName && !state.clientEmail) {
+            return pickRandom([
+                "¡Con mucho gusto te ayudo a agendar! 📅 Para reservar tu turno necesito tu nombre y tu email. ¿Me los compartís?",
+                "¡Perfecto, agendemos! Solo necesito tu nombre completo y email para confirmar el turno. ¿Me los indicás?",
+                "¡Excelente elección! Para reservar tu cita, ¿podés decirme tu nombre y email?",
+            ]);
+        }
+        if (!state.clientName) {
+            return "¡Genial! Ya tengo tu email. ¿Me indicás tu nombre para completar la reserva?";
+        }
+        if (!state.clientEmail) {
+            return `Perfecto, ${state.clientName}! ¿Cuál es tu email? Lo necesito para enviarte la confirmación.`;
+        }
+        if (!state.pendingDate) {
+            const slots = availableSlots.length > 0
+                ? `Tenemos disponibilidad en los siguientes horarios: ${availableSlots.slice(0, 4).join(', ')}.`
+                : 'Tenemos disponibilidad de Lunes a Sábado de 9:00 a 20:00.';
+            return `${slots} ¿Qué fecha y horario te queda mejor, ${state.clientName}? 😊`;
+        }
+    }
+
+    // ── Scheduling with date/time
+    if (state.pendingDate && state.clientName && state.clientEmail) {
+        const service = state.interestedService || 'Consulta general';
+        if (availableSlots.length > 0) {
+            return `¡Hay disponibilidad ese día ${state.clientName}! 🎉 Horarios libres: **${availableSlots.slice(0, 4).join(', ')}**. ¿Cuál te viene mejor para tu **${service}**? Así confirmo tu turno.`;
+        }
+        return `¿A qué horario te viene mejor para tu **${service}**, ${state.clientName}? Nuestro horario es de 9:00 a 20:00 de Lunes a Sábado 📅`;
+    }
+
+    // ── Promotions
+    if (/promo|descuento|oferta|beneficio|referido/.test(msg)) {
+        return pickRandom([
+            "¡Tenemos excelentes promos! 🌟\n\n• **15% OFF** en tu primera visita\n• **Pack Glow** (Limpieza + Peeling) por $120 (¡ahorrás $20!)\n• **Referidos**: traé a una amiga y ambas reciben 10% OFF\n\n¿Te interesa alguna?",
+            "Hay varias promos vigentes:\n\n✨ Primera visita: **15% OFF**\n💆 Pack Glow: **$120** (Limpieza + Peeling)\n👯 Referidas: **10% OFF** para vos y tu amiga\n\n¿Aprovechamos alguna?",
+        ]);
+    }
+
+    // ── Location / hours
+    if (/dónde|dirección|ubicación|horario|cuando abren|cuando cierran|llegar|address|where|hours/.test(msg)) {
+        return pickRandom([
+            "Estamos ubicadas en **Av. Libertador 1234, Buenos Aires** 📍 Abrimos de **Lunes a Sábado de 9:00 a 20:00** (domingos descansamos). ¿Agendamos tu visita?",
+            "¡Nos encontramos en **Av. Libertador 1234, CABA**! Nuestro horario es de 9 a 20hs de Lunes a Sábado. ¿Venís a vernos? 😊",
+        ]);
+    }
+
+    // ── Payment methods
+    if (/pago|pagar|efectivo|tarjeta|mercadopago|cuotas|transferencia/.test(msg)) {
+        return "Aceptamos **efectivo, tarjeta de débito/crédito** (Visa, Mastercard, Amex), **MercadoPago** y **transferencia bancaria**. También ofrecemos **cuotas sin interés** en 3 y 6 pagos 💳";
+    }
+
+    // ── Contact
+    if (/instagram|redes|contacto|teléfono|whatsapp|llamar/.test(msg)) {
+        return "¡Podés encontrarnos en Instagram como **@nova.estetica** 📸 o llamarnos al **+54 11 5555-1234**. También podés agendar tu turno directamente desde acá, ¡es mucho más fácil! 😊";
+    }
+
+    // ── Farewells
+    if (/gracias|chau|adiós|hasta luego|bye|ok listo|perfecto gracias/.test(msg)) {
+        return pickRandom([
+            "¡Un placer haberte ayudado! 💆‍♀️ Te esperamos en NOVA Estética. ¡Que tengas un excelente día!",
+            "¡Gracias a vos! 😊 Si necesitás algo más, acá estamos. ¡Hasta pronto!",
+            "¡Hasta luego! ✨ Cualquier consulta que tengas, no dudes en escribirnos. ¡Nos vemos en NOVA!",
+        ]);
+    }
+
+    // ── Collecting name when we only have email
+    if (state.clientEmail && !state.clientName) {
+        return "¡Gracias por tu email! ¿Me decís tu nombre para poder personalizarte mejor la atención?";
+    }
+
+    // ── Collecting email when we have name
+    if (state.clientName && !state.clientEmail) {
+        return `¡Hola, ${state.clientName}! ¿Me podés dar tu email? Lo uso para enviarte la confirmación de tu cita.`;
+    }
+
+    // ── Default: guide conversation
+    const defaults = [
+        "¿En qué puedo ayudarte hoy? 😊 Podés preguntarme sobre nuestros tratamientos, precios o agendarte una cita directamente.",
+        "¡Estoy aquí para lo que necesites! ¿Querés info sobre algún tratamiento o preferís reservar un turno?",
+        "Claro, con gusto. ¿Me contás un poco más sobre lo que estás buscando? Así te oriento mejor con nuestros servicios 💆‍♀️",
+    ];
+    return pickRandom(defaults);
+}
+
+// ─── Main handler ─────────────────────────────────────────────────────────────
+export default async function handler(req: Request) {
+    if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+    try {
+        const { messages } = await req.json() as { messages: Array<{ role: string; content: string }> };
         const pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
-        // Fetch dynamic services from DB
-        const { rows: services } = await pool.query('SELECT * FROM services WHERE active = true ORDER BY created_at ASC');
-        const serviceListStr = services.map(s => `- **${s.title}** — $${s.price} (${s.duration || 'N/A'})\n  ${s.description || ''}`).join('\n\n');
-
-        const SYSTEM_PROMPT = `Eres Nova, la asistente virtual de **NOVA Estética** — Centro de Belleza Premium en Buenos Aires.
-
-## DATOS DEL NEGOCIO
-- Nombre: NOVA Estética
-- Dirección: Av. Libertador 1234, Buenos Aires, Argentina
-- Teléfono: +54 11 5555-1234
-- Instagram: @nova.estetica
-- Horario: Lunes a Sábado de 9:00 a 20:00. Domingos cerrado.
-- Web: nova-estetica.com
-
-## SERVICIOS Y PRECIOS
-${serviceListStr || 'Actualmente no hay servicios listados.'}
-
-## PROMOCIONES VIGENTES
-- Primera visita: 15% OFF en cualquier tratamiento
-- Pack Glow (Limpieza + Peeling): $120 (ahorro de $20)
-- Referidos: trae a una amiga y ambas reciben 10% OFF
-
-## MÉTODOS DE PAGO
-Efectivo, tarjeta de débito/crédito (Visa, Mastercard, Amex), MercadoPago, transferencia bancaria. Se acepta pago en cuotas (3 y 6 sin interés).
-
-## EQUIPO
-- Dra. Camila Rossi — Directora Médica, especialista en medicina estética
-- Lic. Sofía Méndez — Cosmiatra certificada, especialista en skincare avanzado
-- Lic. Martina López — Masajista terapéutica certificada
-
-## TU ROL Y COMPORTAMIENTO
-- Eres amable, profesional y persuasiva. Tono premium pero cálido.
-- Responde SIEMPRE en el idioma del usuario.
-- Tu objetivo principal: **agendar citas** y **calificar leads**.
-- Pregunta el nombre y email del cliente para poder agendar.
-- Si el cliente muestra interés, ofrece las promociones vigentes.
-- Cuando un cliente pida agendar, verifica disponibilidad y luego reserva.
-- Sé concisa: respuestas de 2-4 oraciones máximo, salvo que pidan detalle.
-- Usa emojis con moderación para dar calidez (✨💆‍♀️📅).
-- Cuando uses herramientas, comunica el resultado de forma natural y amable.
-
-## WORKFLOW DE VENTAS
-1. Saluda y pregunta en qué tratamiento está interesado/a
-2. Recomienda según sus necesidades
-3. Ofrece promociones si aplican
-4. Pide nombre y email para agendar
-5. Verifica disponibilidad con check_availability
-6. Confirma la cita con book_appointment
-7. Actualiza el intent score con calculate_intent`;
-
-        const tools = [
-            {
-                type: "function",
-                function: {
-                    name: "check_availability",
-                    description: "Verifica la disponibilidad de citas en una fecha específica en NOVA Estética",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            date: { type: "string", description: "Fecha en formato YYYY-MM-DD" },
-                        },
-                        required: ["date"],
-                        additionalProperties: false,
-                    },
-                },
-            },
-            {
-                type: "function",
-                function: {
-                    name: "book_appointment",
-                    description: "Agenda una cita para un cliente en NOVA Estética",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            client_name: { type: "string", description: "Nombre del cliente" },
-                            contact_email: { type: "string", description: "Email del cliente" },
-                            date_time: { type: "string", description: "Fecha y hora ISO 8601" },
-                            service_type: { type: "string", description: "Tipo de servicio/tratamiento" },
-                        },
-                        required: ["client_name", "contact_email", "date_time", "service_type"],
-                        additionalProperties: false,
-                    },
-                },
-            },
-            {
-                type: "function",
-                function: {
-                    name: "calculate_intent",
-                    description: "Actualiza el score de intención de compra de un lead (0-100)",
-                    parameters: {
-                        type: "object",
-                        properties: {
-                            contact_email: { type: "string", description: "Email del lead" },
-                            intent_score: { type: "number", description: "Score de 0 a 100" },
-                        },
-                        required: ["contact_email", "intent_score"],
-                        additionalProperties: false,
-                    },
-                },
-            },
-        ];
-
-        const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: "google/gemini-2.5-flash",
-                messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-                tools,
-                stream: false,
-            }),
-        });
-
-        if (!aiResponse.ok) {
-            if (aiResponse.status === 429) {
-                return new Response(JSON.stringify({ error: "Demasiadas solicitudes. Intenta de nuevo en unos segundos." }), {
-                    status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-            }
-            if (aiResponse.status === 402) {
-                return new Response(JSON.stringify({ error: "Créditos agotados." }), {
-                    status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-            }
-            const errText = await aiResponse.text();
-            console.error("AI error:", aiResponse.status, errText);
-            throw new Error("AI gateway error");
-        }
-
-        const aiData = await aiResponse.json();
-        const choice = aiData.choices?.[0];
-
-        if (choice?.finish_reason === "tool_calls" || choice?.message?.tool_calls?.length) {
-            const toolCalls = choice.message.tool_calls;
-            const toolResults = [];
-
-            for (const tc of toolCalls) {
-                const args = JSON.parse(tc.function.arguments);
-                let result = {};
-
-                switch (tc.function.name) {
-                    case "check_availability": {
-                        const { rows } = await pool.query(
-                            "SELECT date_time, service_type FROM appointments WHERE date_time >= $1 AND date_time <= $2 AND status != 'cancelled'",
-                            [`${args.date} 00:00:00`, `${args.date} 23:59:59`]
-                        );
-
-                        const occupiedSlots = rows.map((r: { date_time: string, service_type: string }) => ({
-                            time: new Date(r.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
-                            service: r.service_type,
-                        }));
-
-                        result = {
-                            date: args.date,
-                            available: true,
-                            occupied_slots: occupiedSlots,
-                            business_hours: "9:00 - 20:00",
-                            note: occupiedSlots.length > 0
-                                ? `Hay ${occupiedSlots.length} cita(s) ese día, pero hay más horarios disponibles.`
-                                : "No hay citas ese día, todos los horarios están disponibles.",
-                        };
-                        break;
-                    }
-                    case "book_appointment": {
-                        // Check existing lead
-                        const { rows: existingLead } = await pool.query(
-                            "SELECT id FROM leads WHERE contact_info->>'email' = $1", [args.contact_email]
-                        );
-
-                        let leadId;
-                        if (existingLead.length > 0) {
-                            leadId = existingLead[0].id;
-                            await pool.query("UPDATE leads SET client_name = $1, status = 'contacted' WHERE id = $2", [args.client_name, leadId]);
-                        } else {
-                            const { rows: newLead } = await pool.query(
-                                "INSERT INTO leads (client_name, contact_info, status) VALUES ($1, $2, 'new') RETURNING id",
-                                [args.client_name, JSON.stringify({ email: args.contact_email })]
-                            );
-                            leadId = newLead[0].id;
-                        }
-
-                        await pool.query(
-                            "INSERT INTO appointments (lead_id, date_time, service_type, status) VALUES ($1, $2, $3, 'scheduled')",
-                            [leadId, args.date_time, args.service_type]
-                        );
-
-                        result = { success: true, message: `Cita agendada: ${args.service_type} para ${args.client_name} el ${new Date(args.date_time).toLocaleDateString("es-AR")} a las ${new Date(args.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}` };
-                        break;
-                    }
-                    case "calculate_intent": {
-                        const { rows: lead } = await pool.query(
-                            "SELECT id FROM leads WHERE contact_info->>'email' = $1", [args.contact_email]
-                        );
-
-                        if (lead.length > 0) {
-                            const newStatus = args.intent_score >= 70 ? 'qualified' : 'contacted';
-                            await pool.query(
-                                "UPDATE leads SET intent_score = $1, status = $2 WHERE id = $3",
-                                [args.intent_score, newStatus, lead[0].id]
-                            );
-                        }
-                        result = { success: true, score: args.intent_score };
-                        break;
-                    }
-                    default:
-                        result = { error: "Unknown tool" };
-                }
-
-                toolResults.push({
-                    role: "tool",
-                    tool_call_id: tc.id,
-                    content: JSON.stringify(result),
-                });
-            }
-
-            // Second AI call - streamed
-            const followUp = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-                method: "POST",
-                headers: {
-                    Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                    "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                    model: "google/gemini-2.5-flash",
-                    messages: [
-                        { role: "system", content: SYSTEM_PROMPT },
-                        ...messages,
-                        choice.message,
-                        ...toolResults,
-                    ],
-                    stream: true,
-                }),
-            });
-
-            if (!followUp.ok) {
-                const errText = await followUp.text();
-                console.error("Follow-up error:", followUp.status, errText);
-                throw new Error("AI follow-up error");
-            }
-
-            return new Response(followUp.body, {
-                headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-            });
-        }
-
-        // Default return stream
-        const streamResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${LOVABLE_API_KEY}`,
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({
-                model: "google/gemini-2.5-flash",
-                messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
-                stream: true,
-            }),
-        });
-
-        if (!streamResponse.ok) {
-            const errText = await streamResponse.text();
-            console.error("Stream error:", streamResponse.status, errText);
-            throw new Error("AI stream error");
-        }
-
-        return new Response(streamResponse.body, {
-            headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
-        });
-    } catch (e: unknown) {
-        const errorMsg = e instanceof Error ? e.message : "Unknown error";
-        console.error("api/chat error:", e);
-        return new Response(
-            JSON.stringify({ error: errorMsg }),
-            { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        // Load active services from DB
+        const { rows: services } = await pool.query<{ title: string; price: number; duration: string; description: string }>(
+            'SELECT title, price, duration, description FROM services WHERE active = true ORDER BY created_at ASC'
         );
+
+        // Extract conversation state
+        const state = extractState(messages, services);
+        const lastMsg = messages[messages.length - 1]?.content || '';
+
+        // ── Check availability if date is detected
+        let availableSlots: string[] = [];
+        if (state.pendingDate) {
+            const { rows: taken } = await pool.query<{ date_time: string }>(
+                "SELECT date_time FROM appointments WHERE date_time >= $1 AND date_time <= $2 AND status != 'cancelled'",
+                [`${state.pendingDate} 00:00:00`, `${state.pendingDate} 23:59:59`]
+            );
+            const takenHours = new Set(taken.map(r => new Date(r.date_time).getHours()));
+            for (let h = 9; h <= 19; h++) {
+                if (!takenHours.has(h)) availableSlots.push(`${String(h).padStart(2, '0')}:00`);
+            }
+        }
+
+        // ── Book appointment if we have all the data and user confirms
+        let bookingResult: { success: boolean; datetime?: string; service?: string } | null = null;
+        const wantsToBook = /confirm|sí|si|dale|perfecto|listo|ok|de acuerdo|agendar|reservar/.test(lastMsg.toLowerCase());
+
+        if (
+            wantsToBook &&
+            state.clientName &&
+            state.clientEmail &&
+            state.pendingDate &&
+            state.pendingTime
+        ) {
+            const dateTimeStr = `${state.pendingDate}T${state.pendingTime}:00`;
+            const service = state.interestedService || 'Consulta general';
+
+            // Upsert lead
+            const { rows: existingLead } = await pool.query<{ id: string }>(
+                "SELECT id FROM leads WHERE contact_info->>'email' = $1",
+                [state.clientEmail]
+            );
+            let leadId: string;
+            if (existingLead.length > 0) {
+                leadId = existingLead[0].id;
+                await pool.query(
+                    "UPDATE leads SET client_name = $1, status = 'qualified', intent_score = $2 WHERE id = $3",
+                    [state.clientName, state.intentScore, leadId]
+                );
+            } else {
+                const { rows: newLead } = await pool.query<{ id: string }>(
+                    "INSERT INTO leads (client_name, contact_info, status, intent_score) VALUES ($1, $2, 'qualified', $3) RETURNING id",
+                    [state.clientName, JSON.stringify({ email: state.clientEmail }), state.intentScore]
+                );
+                leadId = newLead[0].id;
+            }
+
+            // Insert appointment
+            await pool.query(
+                "INSERT INTO appointments (lead_id, date_time, service_type, status) VALUES ($1, $2, $3, 'scheduled')",
+                [leadId, dateTimeStr, service]
+            );
+
+            const friendlyDate = new Date(dateTimeStr).toLocaleDateString('es-AR', {
+                weekday: 'long', day: 'numeric', month: 'long'
+            });
+            const friendlyTime = state.pendingTime;
+
+            bookingResult = { success: true, datetime: `${friendlyDate} a las ${friendlyTime}hs`, service };
+        }
+
+        // ── Update lead intent in background (don't block response)
+        if (state.clientEmail && state.intentScore >= 40) {
+            pool.query(
+                "UPDATE leads SET intent_score = $1 WHERE contact_info->>'email' = $2",
+                [state.intentScore, state.clientEmail]
+            ).catch(() => {/* silent */ });
+        }
+
+        // Generate the natural response
+        const response = generateResponse(lastMsg, state, services, availableSlots, bookingResult);
+
+        await pool.end();
+        return sseStream(response);
+
+    } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Unknown error';
+        console.error('chat error:', msg);
+        return new Response(JSON.stringify({ error: msg }), {
+            status: 500,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        });
     }
 }
