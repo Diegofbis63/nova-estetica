@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Bot, Send, AlertTriangle, Sparkles } from "lucide-react";
+import { MessageCircle, Send, AlertTriangle } from "lucide-react";
 import { streamAuraChat } from "@/lib/aura-chat";
 import ReactMarkdown from "react-markdown";
 
@@ -56,63 +56,60 @@ export default function AuraChat() {
   };
 
   return (
-    <div className="flex flex-col h-[600px] w-full max-w-2xl mx-auto bg-black/80 backdrop-blur-xl border border-cyan-500/30 rounded-2xl overflow-hidden shadow-[0_0_60px_rgba(6,182,212,0.15)]">
+    <div className="flex flex-col h-[550px] w-full max-w-2xl mx-auto bg-noir-light/80 backdrop-blur-xl border border-cream/10 rounded-2xl overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-cyan-500/20 bg-gradient-to-r from-cyan-500/5 to-blue-500/5">
+      <div className="flex items-center justify-between px-6 py-4 border-b border-cream/8 bg-gradient-to-r from-gold/5 to-transparent">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-cyan-500/10 rounded-lg border border-cyan-500/20">
-            <Bot className="w-5 h-5 text-cyan-400" />
+          <div className="p-2 bg-gold/10 rounded-full border border-gold/20">
+            <MessageCircle className="w-4 h-4 text-gold" />
           </div>
           <div>
-            <h3 className="text-sm font-bold text-white tracking-[0.2em] uppercase">
-              Aura Virtual Core
+            <h3 className="text-sm font-serif font-semibold text-cream">
+              Asistente NOVA
             </h3>
             <div className="flex items-center gap-1.5">
               <span
                 className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                  isLoading ? "bg-amber-400" : "bg-cyan-400"
+                  isLoading ? "bg-gold-light" : "bg-emerald-400"
                 }`}
               />
-              <span className="text-[10px] text-cyan-300/60 font-mono uppercase tracking-tighter">
-                {isLoading ? "Processing..." : "Online"}
+              <span className="text-[10px] text-cream/40 font-sans">
+                {isLoading ? "Escribiendo..." : "En línea"}
               </span>
             </div>
           </div>
         </div>
-        <Sparkles className="w-4 h-4 text-cyan-500/40" />
       </div>
 
       {/* Messages */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-thin scrollbar-thumb-cyan-500/20 scrollbar-track-transparent"
+        className="flex-1 overflow-y-auto p-6 space-y-4"
       >
         {messages.length === 0 && !isLoading && !error && (
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-50">
-            <div className="p-4 rounded-full border border-cyan-500/20 bg-cyan-500/5">
-              <Bot className="w-10 h-10 text-cyan-400/50" />
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+            <div className="p-4 rounded-full border border-gold/15 bg-gold/5">
+              <MessageCircle className="w-8 h-8 text-gold/40" />
             </div>
-            <p className="text-xs text-cyan-300 font-mono uppercase tracking-[0.25em]">
-              Standby for synchronization...
-            </p>
-            <p className="text-[10px] text-cyan-300/40 max-w-xs">
-              Soy Aura, tu agente de ventas de élite. Pregúntame lo que necesites.
-            </p>
+            <div>
+              <p className="text-sm font-serif text-cream/60 mb-1">¡Hola! Soy tu asistente</p>
+              <p className="text-xs text-cream/30 font-sans max-w-xs">
+                Pregúntame sobre nuestros tratamientos, precios o agenda tu cita directamente aquí.
+              </p>
+            </div>
           </div>
         )}
 
         {messages.map((m, i) => (
           <div
             key={i}
-            className={`flex ${
-              m.role === "user" ? "justify-end" : "justify-start"
-            } animate-in fade-in slide-in-from-bottom-2 duration-300`}
+            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed ${
+              className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed font-sans ${
                 m.role === "user"
-                  ? "bg-cyan-600/20 border border-cyan-500/30 text-cyan-50 rounded-tr-sm"
-                  : "bg-zinc-900/80 border border-zinc-700/50 text-zinc-300 rounded-tl-sm ring-1 ring-cyan-500/10"
+                  ? "bg-gold/15 border border-gold/20 text-cream rounded-tr-sm"
+                  : "bg-cream/5 border border-cream/8 text-cream/70 rounded-tl-sm"
               }`}
             >
               {m.role === "assistant" ? (
@@ -128,16 +125,16 @@ export default function AuraChat() {
 
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="flex justify-start">
-            <div className="bg-zinc-900/50 border border-zinc-800 px-4 py-3 rounded-2xl flex gap-1.5">
-              <div className="w-2 h-2 bg-cyan-500/60 rounded-full animate-bounce" />
-              <div className="w-2 h-2 bg-cyan-500/60 rounded-full animate-bounce [animation-delay:0.15s]" />
-              <div className="w-2 h-2 bg-cyan-500/60 rounded-full animate-bounce [animation-delay:0.3s]" />
+            <div className="bg-cream/5 border border-cream/8 px-4 py-3 rounded-2xl flex gap-1.5">
+              <div className="w-2 h-2 bg-gold/50 rounded-full animate-bounce" />
+              <div className="w-2 h-2 bg-gold/50 rounded-full animate-bounce [animation-delay:0.15s]" />
+              <div className="w-2 h-2 bg-gold/50 rounded-full animate-bounce [animation-delay:0.3s]" />
             </div>
           </div>
         )}
 
         {error && (
-          <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-xs flex items-center gap-2">
+          <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2 font-sans">
             <AlertTriangle className="w-4 h-4 shrink-0" />
             <span>{error}</span>
           </div>
@@ -145,13 +142,13 @@ export default function AuraChat() {
       </div>
 
       {/* Input */}
-      <div className="p-4 bg-black/60 border-t border-cyan-500/10">
+      <div className="p-4 bg-noir/60 border-t border-cream/8">
         <form
           onSubmit={handleSend}
-          className="flex items-center gap-3 bg-zinc-900/60 border border-cyan-500/20 rounded-xl p-1.5 focus-within:border-cyan-500/40 focus-within:shadow-[0_0_20px_rgba(6,182,212,0.1)] transition-all duration-300"
+          className="flex items-center gap-3 bg-cream/5 border border-cream/10 rounded-full p-1.5 focus-within:border-gold/30 transition-all duration-300"
         >
           <input
-            className="flex-1 bg-transparent border-none text-white text-sm px-3 py-1 focus:outline-none focus:ring-0 placeholder:text-zinc-600 disabled:opacity-50"
+            className="flex-1 bg-transparent border-none text-cream text-sm px-4 py-1.5 focus:outline-none focus:ring-0 placeholder:text-cream/25 disabled:opacity-50 font-sans"
             value={input}
             placeholder="Escribe tu mensaje..."
             onChange={(e) => setInput(e.target.value)}
@@ -160,14 +157,11 @@ export default function AuraChat() {
           <button
             type="submit"
             disabled={isLoading || !input.trim()}
-            className="bg-cyan-600 hover:bg-cyan-500 disabled:bg-zinc-800 disabled:cursor-not-allowed text-white p-2.5 rounded-lg transition-all active:scale-95 shadow-[0_0_15px_rgba(6,182,212,0.3)] hover:shadow-[0_0_25px_rgba(6,182,212,0.5)]"
+            className="bg-gradient-to-r from-gold to-gold-light disabled:from-cream/10 disabled:to-cream/10 disabled:cursor-not-allowed text-noir p-2.5 rounded-full transition-all active:scale-95"
           >
             <Send className="w-4 h-4" />
           </button>
         </form>
-        <div className="mt-2 text-[8px] text-center font-mono text-zinc-700 uppercase tracking-[0.3em]">
-          Quantum Encryption Enabled // Aura Protocol v2.0
-        </div>
       </div>
     </div>
   );
