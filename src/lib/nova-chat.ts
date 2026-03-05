@@ -1,6 +1,6 @@
 type Msg = { role: "user" | "assistant"; content: string };
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/nova-chat`;
+const CHAT_URL = "/api/chat";
 
 export async function streamNovaChat({
   messages,
@@ -18,7 +18,6 @@ export async function streamNovaChat({
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
       },
       body: JSON.stringify({ messages }),
     });
