@@ -55,7 +55,7 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
     const allText = messages.map(m => m.content).join('\n').toLowerCase();
 
     // Extract email
-    const emailMatch = allText.match(/[a-z0-9._%+\-]+@[a-z0-9.\-]+\.[a-z]{2,}/i);
+    const emailMatch = allText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
     if (emailMatch) state.clientEmail = emailMatch[0].toLowerCase();
 
     // Extract name from patterns
@@ -68,7 +68,10 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
     ];
     for (const p of namePatterns) {
         const m = allText.match(p);
-        if (m) { state.clientName = capitalize(m[1]); break; }
+        if (m) {
+            state.clientName = m[1].split(' ').map(w => capitalize(w)).join(' ');
+            break;
+        }
     }
 
     // Extract interested service
@@ -80,7 +83,7 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
     }
 
     // Detect date mentions
-    const dateMatch = allText.match(/(\d{1,2})[\/\-](\d{1,2})(?:[\/\-](\d{2,4}))?/);
+    const dateMatch = allText.match(/(\d{1,2})[/\-](\d{1,2})(?:[/\-](\d{2,4}))?/);
     if (dateMatch) {
         const year = dateMatch[3] ? (dateMatch[3].length === 2 ? `20${dateMatch[3]}` : dateMatch[3]) : new Date().getFullYear();
         state.pendingDate = `${year}-${String(dateMatch[2]).padStart(2, '0')}-${String(dateMatch[1]).padStart(2, '0')}`;
@@ -275,7 +278,7 @@ export default async function handler(req: Request) {
         const lastMsg = messages[messages.length - 1]?.content || '';
 
         // ── Check availability if date is detected
-        let availableSlots: string[] = [];
+        const availableSlots: string[] = [];
         if (state.pendingDate) {
             const { rows: taken } = await pool.query<{ date_time: string }>(
                 "SELECT date_time FROM appointments WHERE date_time >= $1 AND date_time <= $2 AND status != 'cancelled'",
