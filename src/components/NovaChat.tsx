@@ -1,11 +1,11 @@
 import { useState, useRef, useEffect } from "react";
 import { MessageCircle, Send, AlertTriangle } from "lucide-react";
-import { streamAuraChat } from "@/lib/aura-chat";
+import { streamNovaChat } from "@/lib/nova-chat";
 import ReactMarkdown from "react-markdown";
 
 type Msg = { role: "user" | "assistant"; content: string };
 
-export default function AuraChat() {
+export default function NovaChat() {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +44,7 @@ export default function AuraChat() {
       });
     };
 
-    await streamAuraChat({
+    await streamNovaChat({
       messages: [...messages, userMsg],
       onDelta: (chunk) => upsertAssistant(chunk),
       onDone: () => setIsLoading(false),
@@ -69,9 +69,8 @@ export default function AuraChat() {
             </h3>
             <div className="flex items-center gap-1.5">
               <span
-                className={`w-1.5 h-1.5 rounded-full animate-pulse ${
-                  isLoading ? "bg-gold-light" : "bg-emerald-400"
-                }`}
+                className={`w-1.5 h-1.5 rounded-full animate-pulse ${isLoading ? "bg-gold-light" : "bg-emerald-400"
+                  }`}
               />
               <span className="text-[10px] text-cream/40 font-sans">
                 {isLoading ? "Escribiendo..." : "En línea"}
@@ -106,11 +105,10 @@ export default function AuraChat() {
             className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed font-sans ${
-                m.role === "user"
+              className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed font-sans ${m.role === "user"
                   ? "bg-gold/15 border border-gold/20 text-cream rounded-tr-sm"
                   : "bg-cream/5 border border-cream/8 text-cream/70 rounded-tl-sm"
-              }`}
+                }`}
             >
               {m.role === "assistant" ? (
                 <div className="prose prose-sm prose-invert max-w-none prose-p:my-1 prose-headings:my-2">

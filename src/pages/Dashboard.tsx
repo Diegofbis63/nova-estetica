@@ -137,7 +137,7 @@ export default function Dashboard() {
                   {loading ? (
                     <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-xs">Cargando datos...</td></tr>
                   ) : leads.length === 0 ? (
-                    <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-xs">Sin leads aún. Cuando alguien converse con Aura y agende una cita, aparecerá aquí.</td></tr>
+                    <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-600 text-xs">Sin leads aún. Cuando alguien converse con Nova y agende una cita, aparecerá aquí.</td></tr>
                   ) : leads.map((l) => {
                     const email = (l.contact_info as Record<string, unknown>)?.email as string || "—";
                     return (
@@ -146,8 +146,8 @@ export default function Dashboard() {
                         <td className="px-4 py-3 text-zinc-400 text-xs font-mono">{email}</td>
                         <td className="px-4 py-3">
                           <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${l.status === "qualified" ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" :
-                              l.status === "contacted" ? "text-amber-400 border-amber-500/30 bg-amber-500/10" :
-                                "text-zinc-400 border-zinc-600/30 bg-zinc-600/10"
+                            l.status === "contacted" ? "text-amber-400 border-amber-500/30 bg-amber-500/10" :
+                              "text-zinc-400 border-zinc-600/30 bg-zinc-600/10"
                             }`}>
                             {l.status === "qualified" ? "Calificado" : l.status === "contacted" ? "Contactado" : "Nuevo"}
                           </span>
@@ -157,8 +157,8 @@ export default function Dashboard() {
                             <div className="w-16 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
                               <div
                                 className={`h-full rounded-full ${(l.intent_score || 0) >= 70 ? "bg-gradient-to-r from-emerald-500 to-cyan-500" :
-                                    (l.intent_score || 0) >= 40 ? "bg-gradient-to-r from-amber-500 to-yellow-500" :
-                                      "bg-gradient-to-r from-zinc-600 to-zinc-500"
+                                  (l.intent_score || 0) >= 40 ? "bg-gradient-to-r from-amber-500 to-yellow-500" :
+                                    "bg-gradient-to-r from-zinc-600 to-zinc-500"
                                   }`}
                                 style={{ width: `${l.intent_score || 0}%` }}
                               />
@@ -198,7 +198,7 @@ export default function Dashboard() {
                   {loading ? (
                     <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-xs">Cargando datos...</td></tr>
                   ) : appointments.length === 0 ? (
-                    <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-xs">Sin citas aún. Aura las agenda automáticamente desde el chat.</td></tr>
+                    <tr><td colSpan={4} className="px-4 py-8 text-center text-zinc-600 text-xs">Sin citas aún. Nova las agenda automáticamente desde el chat.</td></tr>
                   ) : appointments.map((a) => (
                     <tr key={a.id} className="border-b border-zinc-800/40 hover:bg-zinc-800/20 transition-colors">
                       <td className="px-4 py-3 text-white font-medium">{a.service_type || "General"}</td>
@@ -209,9 +209,9 @@ export default function Dashboard() {
                       </td>
                       <td className="px-4 py-3">
                         <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${a.status === "scheduled" ? "text-cyan-400 border-cyan-500/30 bg-cyan-500/10" :
-                            a.status === "completed" ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" :
-                              a.status === "cancelled" ? "text-red-400 border-red-500/30 bg-red-500/10" :
-                                "text-zinc-400 border-zinc-600/30 bg-zinc-600/10"
+                          a.status === "completed" ? "text-emerald-400 border-emerald-500/30 bg-emerald-500/10" :
+                            a.status === "cancelled" ? "text-red-400 border-red-500/30 bg-red-500/10" :
+                              "text-zinc-400 border-zinc-600/30 bg-zinc-600/10"
                           }`}>
                           {a.status === "scheduled" ? "Agendada" : a.status === "completed" ? "Completada" : a.status === "cancelled" ? "Cancelada" : a.status}
                         </span>

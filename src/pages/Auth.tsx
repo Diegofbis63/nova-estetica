@@ -53,7 +53,7 @@ export default function Auth() {
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <span className="text-xl font-bold tracking-[0.15em] uppercase bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
-            Aura AI
+            Nova Estética
           </span>
         </div>
 

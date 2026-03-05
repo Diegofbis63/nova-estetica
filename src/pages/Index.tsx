@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
-import AuraChat from "@/components/AuraChat";
+import NovaChat from "@/components/NovaChat";
 import ScrollReveal from "@/components/landing/ScrollReveal";
 import HeroSection from "@/components/landing/HeroSection";
 import ServicesSection from "@/components/landing/ServicesSection";
@@ -93,7 +93,7 @@ const Index = () => {
                 Habla con nuestra asistente virtual. Disponible las 24 horas, los 7 días de la semana.
               </p>
             </div>
-            <AuraChat />
+            <NovaChat />
           </section>
         </ScrollReveal>
 

@@ -9,7 +9,7 @@ const corsHeaders = {
 
 const ORG_ID = "00000000-0000-0000-0000-000000000000";
 
-const SYSTEM_PROMPT = `Eres Aura, la asistente virtual de **NOVA Estética** — Centro de Belleza Premium en Buenos Aires.
+const SYSTEM_PROMPT = `Eres Nova, la asistente virtual de **NOVA Estética** — Centro de Belleza Premium en Buenos Aires.
 
 ## DATOS DEL NEGOCIO
 - Nombre: NOVA Estética
@@ -337,7 +337,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
     });
   } catch (e) {
-    console.error("aura-chat error:", e);
+    console.error("nova-chat error:", e);
     return new Response(
       JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }

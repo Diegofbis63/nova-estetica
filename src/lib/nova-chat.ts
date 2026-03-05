@@ -1,8 +1,8 @@
 type Msg = { role: "user" | "assistant"; content: string };
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/aura-chat`;
+const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/nova-chat`;
 
-export async function streamAuraChat({
+export async function streamNovaChat({
   messages,
   onDelta,
   onDone,
@@ -33,7 +33,7 @@ export async function streamAuraChat({
         return;
       }
       const errData = await resp.json().catch(() => ({}));
-      onError(errData.error || "Error de conexión con Aura AI");
+      onError(errData.error || "Error de conexión con Nova Estética");
       return;
     }
 

@@ -1,6 +1,6 @@
-# Aura AI - Cognitive Autonomous Agent
+# Nova Estética - Cognitive Autonomous Agent
 
-![Aura AI](https://img.shields.io/badge/Aura_AI-Autonomous_Agent-8A2BE2?style=for-the-badge&logo=openai&logoColor=white)
+![Nova Estética](https://img.shields.io/badge/Nova_Estetica-Autonomous_Agent-8A2BE2?style=for-the-badge&logo=openai&logoColor=white)
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
@@ -32,8 +32,8 @@ B2B-ready intelligent autonomous web agent designed for premium customer support
 1. Clone the repository:
 
    ```sh
-   git clone https://github.com/Diegofbis63/aura-ai-fix.git
-   cd aura-ai-fix
+   git clone https://github.com/Diegofbis63/nova-estetica.git
+   cd nova-estetica
    ```
 
 2. Install dependencies:
