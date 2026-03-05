@@ -18,6 +18,42 @@ export default function NovaChat() {
     }
   }, [messages]);
 
+  useEffect(() => {
+    // Auto-trigger greeting if empty
+    if (messages.length === 0 && !isLoading) {
+      triggerInitialGreeting();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const triggerInitialGreeting = async () => {
+    setIsLoading(true);
+    let assistantSoFar = "";
+
+    const upsertAssistant = (chunk: string) => {
+      assistantSoFar += chunk;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant") {
+          return prev.map((m, i) =>
+            i === prev.length - 1 ? { ...m, content: assistantSoFar } : m
+          );
+        }
+        return [...prev, { role: "assistant", content: assistantSoFar }];
+      });
+    };
+
+    await streamNovaChat({
+      messages: [],
+      onDelta: (chunk) => upsertAssistant(chunk),
+      onDone: () => setIsLoading(false),
+      onError: (err) => {
+        setError(err);
+        setIsLoading(false);
+      },
+    });
+  };
+
   const handleSend = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     const content = input.trim();
@@ -106,8 +142,8 @@ export default function NovaChat() {
           >
             <div
               className={`max-w-[85%] px-4 py-3 rounded-2xl text-sm leading-relaxed font-sans ${m.role === "user"
-                  ? "bg-gold/15 border border-gold/20 text-cream rounded-tr-sm"
-                  : "bg-cream/5 border border-cream/8 text-cream/70 rounded-tl-sm"
+                ? "bg-gold/15 border border-gold/20 text-cream rounded-tr-sm"
+                : "bg-cream/5 border border-cream/8 text-cream/70 rounded-tl-sm"
                 }`}
             >
               {m.role === "assistant" ? (
