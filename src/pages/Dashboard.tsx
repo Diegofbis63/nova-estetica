@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit } from "lucide-react";
+import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -120,6 +120,17 @@ export default function Dashboard() {
     } catch (e) {
       console.error(e);
       setLoading(false);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCurrentService({ ...currentService, image_url: reader.result as string });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -253,8 +264,8 @@ export default function Dashboard() {
                           </td>
                           <td className="px-6 py-5">
                             <span className={`text-[9px] font-sans font-bold uppercase tracking-widest px-3 py-1 rounded-full border ${l.status === "qualified" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
-                                l.status === "contacted" ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
-                                  "text-cream/40 border-cream/10 bg-cream/5"
+                              l.status === "contacted" ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
+                                "text-cream/40 border-cream/10 bg-cream/5"
                               }`}>
                               {l.status === "qualified" ? "Interés Alto" : l.status === "contacted" ? "En Gestión" : "Nuevo"}
                             </span>
@@ -323,8 +334,8 @@ export default function Dashboard() {
                         </td>
                         <td className="px-6 py-5">
                           <span className={`text-[9px] font-sans font-bold uppercase tracking-widest px-3 py-1 rounded-full border ${a.status === "scheduled" ? "text-gold border-gold/20 bg-gold/5" :
-                              a.status === "completed" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
-                                "text-cream/20 border-cream/5 bg-cream/5"
+                            a.status === "completed" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
+                              "text-cream/20 border-cream/5 bg-cream/5"
                             }`}>
                             {a.status === "scheduled" ? "Confirmada" : a.status === "completed" ? "Finalizada" : a.status}
                           </span>
@@ -387,10 +398,32 @@ export default function Dashboard() {
                         placeholder="Ej. 60 min" value={currentService.duration || ''} onChange={e => setCurrentService({ ...currentService, duration: e.target.value })} />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-[10px] uppercase tracking-widest text-cream/30">Presentación Visual (URL)</label>
-                    <input type="url" placeholder="https://..." className="w-full bg-noir border border-cream/5 rounded-xl px-4 py-3 text-sm text-cream/40 focus:outline-none focus:border-gold/30 transition-all font-sans"
-                      value={currentService.image_url || ''} onChange={e => setCurrentService({ ...currentService, image_url: e.target.value })} />
+                  <div className="space-y-3">
+                    <label className="text-[10px] uppercase tracking-widest text-cream/30">Presentación Visual</label>
+                    <div className="flex flex-col gap-4">
+                      {currentService.image_url && (
+                        <div className="relative w-full h-40 rounded-xl overflow-hidden border border-gold/20">
+                          <img src={currentService.image_url} alt="Preview" className="w-full h-full object-cover" />
+                          <button
+                            type="button"
+                            onClick={() => setCurrentService({ ...currentService, image_url: '' })}
+                            className="absolute top-2 right-2 bg-noir/80 p-1.5 rounded-full text-rose hover:bg-rose hover:text-white transition-all"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      )}
+                      <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-cream/10 rounded-xl hover:border-gold/30 hover:bg-gold/5 transition-all cursor-pointer group">
+                        <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                          <Upload className="w-8 h-8 text-cream/20 group-hover:text-gold transition-colors mb-2" />
+                          <p className="text-xs text-cream/40 group-hover:text-cream/60 transition-colors">
+                            <span className="font-bold">Haz clic para subir</span> o arrastra
+                          </p>
+                          <p className="text-[9px] text-cream/20 uppercase tracking-widest mt-1">PNG, JPG o WEBP</p>
+                        </div>
+                        <input type="file" className="hidden" accept="image/*" onChange={handleFileChange} />
+                      </label>
+                    </div>
                   </div>
                   <div className="flex items-center gap-3 py-2">
                     <div className="relative inline-flex items-center cursor-pointer">
