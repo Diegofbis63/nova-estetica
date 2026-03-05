@@ -5,7 +5,7 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
 ![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
 ![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
+![NeonDB](https://img.shields.io/badge/Neon-00E599?style=for-the-badge&logo=neon&logoColor=black)
 
 B2B-ready intelligent autonomous web agent designed for premium customer support and interactive user experiences.
 
@@ -13,7 +13,7 @@ B2B-ready intelligent autonomous web agent designed for premium customer support
 
 - **Interactive 3D UI**: Fully integrated with Spline for immersive real-time visually responsive graphics.
 - **State-of-the-Art AI integration**: Leverages Large Language Models to stream natural language seamlessly, ensuring zero perceived end-user latency.
-- **Persistent Memory**: Uses Postgres (Supabase) for session management, providing conversational context retention for long interactions.
+- **Persistent Memory**: Uses Neon Postgres Serverless for fast, scalable datastore, providing conversational context retention and scheduling.
 - **Next-Gen UI**: Designed with extreme Glassmorphism and "Liquid Luxury" styling components via Shadcn-UI and Tailwind CSS.
 - **Enterprise-Ready**: Fast client-side rendering with Vite, strictly typed with TypeScript, and thoroughly componentized for immediate scalability.
 
@@ -22,7 +22,7 @@ B2B-ready intelligent autonomous web agent designed for premium customer support
 - **Framework**: Vite + React 18
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS + shadcn/ui
-- **Database / Auth**: Supabase
+- **Database / Backend**: Neon Serverless Postgres + Vercel Edge API Routes
 - **Visuals**: Framer Motion & Spline 3D
 - **Routing**: React Router v6
 - **Data Fetching**: TanStack React Query
@@ -43,7 +43,7 @@ B2B-ready intelligent autonomous web agent designed for premium customer support
    ```
 
 3. Configure your environmental variables:
-   Provide your Supabase credentials natively to allow full data sync.
+   Provide your Neon DB credentials natively to allow full data sync (`DATABASE_URL`).
 
    ```sh
    cp .env.example .env
