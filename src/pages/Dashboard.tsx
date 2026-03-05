@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon } from "lucide-react";
+import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 
 interface Lead {
   id: string;
@@ -22,7 +22,7 @@ interface Appointment {
   created_at: string;
 }
 
-interface Service {
+export interface Service {
   id: string;
   title: string;
   description: string;
@@ -30,6 +30,7 @@ interface Service {
   duration: string;
   image_url: string;
   active: boolean;
+  sort_order: number;
 }
 
 export default function Dashboard() {
@@ -131,6 +132,31 @@ export default function Dashboard() {
         setCurrentService({ ...currentService, image_url: reader.result as string });
       };
       reader.readAsDataURL(file);
+    }
+  };
+
+  const moveService = async (index: number, direction: 'up' | 'down') => {
+    const newServices = [...services];
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+
+    if (targetIndex < 0 || targetIndex >= services.length) return;
+
+    const [moved] = newServices.splice(index, 1);
+    newServices.splice(targetIndex, 0, moved);
+
+    // Optimized: only update the affected ones or the entire sequence
+    const updatedServices = newServices.map((s, i) => ({ ...s, sort_order: i }));
+    setServices(updatedServices);
+
+    try {
+      await fetch('/api/services', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reorder: updatedServices.map(s => ({ id: s.id, sort_order: s.sort_order })) })
+      });
+    } catch (e) {
+      console.error('Failed to save order:', e);
+      fetchData(); // Rollback
     }
   };
 
@@ -357,7 +383,7 @@ export default function Dashboard() {
                 <h3 className="text-2xl font-serif font-bold text-cream mb-2 flex items-center gap-3">
                   Catálogo de Tratamientos
                 </h3>
-                <p className="text-xs text-cream/30 font-sans tracking-wider uppercase">Gestiona los servicios que Nova IA ofrece a los clientes</p>
+                <p className="text-xs text-cream/30 font-sans tracking-wider uppercase">Gestiona los servicios y el orden en que aparecen en el inicio</p>
               </div>
               <button
                 onClick={() => { setIsEditing(true); setCurrentService({ active: true }); }}
@@ -446,8 +472,26 @@ export default function Dashboard() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-                {services.map(s => (
-                  <div key={s.id} className={`group rounded-2xl border ${s.active ? 'border-cream/5 bg-noir-light/30' : 'border-noir bg-noir opacity-40'} overflow-hidden transition-all duration-300 hover:translate-y-[-4px] hover:border-gold/20 hover:shadow-2xl`}>
+                {services.map((s, index) => (
+                  <div key={s.id} className={`group rounded-2xl border ${s.active ? 'border-cream/5 bg-noir-light/30' : 'border-noir bg-noir opacity-40'} overflow-hidden transition-all duration-300 hover:translate-y-[-4px] hover:border-gold/20 hover:shadow-2xl relative shadow-xl`}>
+                    {/* Order Controls */}
+                    <div className="absolute top-2 left-2 z-20 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); moveService(index, 'up'); }}
+                        disabled={index === 0}
+                        className="p-1.5 rounded-md bg-noir/80 text-gold/60 hover:text-gold hover:bg-noir disabled:opacity-30 disabled:hover:bg-noir/80 transition-all border border-cream/5"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); moveService(index, 'down'); }}
+                        disabled={index === services.length - 1}
+                        className="p-1.5 rounded-md bg-noir/80 text-gold/60 hover:text-gold hover:bg-noir disabled:opacity-30 disabled:hover:bg-noir/80 transition-all border border-cream/5"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
                     <div className="relative h-48 overflow-hidden">
                       {s.image_url ? (
                         <img src={s.image_url} alt={s.title} className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110" />

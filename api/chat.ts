@@ -139,7 +139,7 @@ export default async function handler(req: Request) {
 
         // Fetch services
         const { rows: services } = await pool.query<{ title: string; price: number }>(
-            'SELECT title, price FROM services WHERE active = true ORDER BY created_at ASC'
+            'SELECT title, price FROM services WHERE active = true ORDER BY sort_order ASC, created_at ASC'
         );
 
         const state = extractState(messages, services);
