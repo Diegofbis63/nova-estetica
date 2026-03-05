@@ -186,11 +186,11 @@ serve(async (req) => {
     // Handle tool calls
     if (choice?.finish_reason === "tool_calls" || choice?.message?.tool_calls?.length) {
       const toolCalls = choice.message.tool_calls;
-      const toolResults: any[] = [];
+      const toolResults: Record<string, unknown>[] = [];
 
       for (const tc of toolCalls) {
         const args = JSON.parse(tc.function.arguments);
-        let result: any;
+        let result: Record<string, unknown>;
 
         switch (tc.function.name) {
           case "check_availability": {
@@ -201,12 +201,12 @@ serve(async (req) => {
               .gte("date_time", `${args.date}T00:00:00`)
               .lte("date_time", `${args.date}T23:59:59`)
               .neq("status", "cancelled");
-            
-            const occupiedSlots = (rows || []).map((r: any) => ({
+
+            const occupiedSlots = (rows || []).map((r: { date_time: string; service_type: string }) => ({
               time: new Date(r.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
               service: r.service_type,
             }));
-            
+
             result = {
               date: args.date,
               available: true,
@@ -262,7 +262,7 @@ serve(async (req) => {
               .eq("organization_id", ORG_ID)
               .eq("contact_info->>email", args.contact_email)
               .maybeSingle();
-            
+
             if (lead) {
               await supabase
                 .from("leads")

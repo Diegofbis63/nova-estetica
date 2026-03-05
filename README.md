@@ -1,73 +1,68 @@
-# Welcome to your Lovable project
+# Aura AI - Cognitive Autonomous Agent
 
-## Project info
+![Aura AI](https://img.shields.io/badge/Aura_AI-Autonomous_Agent-8A2BE2?style=for-the-badge&logo=openai&logoColor=white)
+![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
+![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
+![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+B2B-ready intelligent autonomous web agent designed for premium customer support and interactive user experiences.
 
-## How can I edit this code?
+## 🚀 Features
 
-There are several ways of editing your application.
+- **Interactive 3D UI**: Fully integrated with Spline for immersive real-time visually responsive graphics.
+- **State-of-the-Art AI integration**: Leverages Large Language Models to stream natural language seamlessly, ensuring zero perceived end-user latency.
+- **Persistent Memory**: Uses Postgres (Supabase) for session management, providing conversational context retention for long interactions.
+- **Next-Gen UI**: Designed with extreme Glassmorphism and "Liquid Luxury" styling components via Shadcn-UI and Tailwind CSS.
+- **Enterprise-Ready**: Fast client-side rendering with Vite, strictly typed with TypeScript, and thoroughly componentized for immediate scalability.
 
-**Use Lovable**
+## 🛠 Tech Stack
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+- **Framework**: Vite + React 18
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui
+- **Database / Auth**: Supabase
+- **Visuals**: Framer Motion & Spline 3D
+- **Routing**: React Router v6
+- **Data Fetching**: TanStack React Query
 
-Changes made via Lovable will be committed automatically to this repo.
+## 💻 Getting Started
 
-**Use your preferred IDE**
+1. Clone the repository:
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+   ```sh
+   git clone https://github.com/Diegofbis63/aura-ai-fix.git
+   cd aura-ai-fix
+   ```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+2. Install dependencies:
 
-Follow these steps:
+   ```sh
+   npm install
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+3. Configure your environmental variables:
+   Provide your Supabase credentials natively to allow full data sync.
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+   ```sh
+   cp .env.example .env
+   ```
 
-# Step 3: Install the necessary dependencies.
-npm i
+4. Run the development server:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+   ```sh
+   npm run dev
+   ```
 
-**Edit a file directly in GitHub**
+## 🌐 Deployment
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+This application comes pre-configured for high-availability Edge network deployments via [Vercel](https://vercel.com). Simply link your GitHub repository to a Vercel Project and deploy with standard Vite build settings:
 
-**Use GitHub Codespaces**
+- **Build Command:** `npm run build`
+- **Output Directory:** `dist`
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 📄 License & Attribution
 
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+This project is part of the **Antigravity** premium SaaS ecosystem.
+Built by Diego Federico Bisquerra.
