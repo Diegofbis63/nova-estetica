@@ -1,264 +1,133 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import AuraChat from "@/components/AuraChat";
-import ServiceCard from "@/components/landing/ServiceCard";
-import BeforeAfterGallery from "@/components/landing/BeforeAfterGallery";
 import ScrollReveal from "@/components/landing/ScrollReveal";
-import { Sparkles, Shield, Zap, Brain, LogIn, Star, Clock, MapPin, Phone, Instagram, ChevronRight } from "lucide-react";
-
-import heroBg from "@/assets/hero-bg.jpg";
-import serviceFacial from "@/assets/service-facial.jpg";
-import serviceHialuronico from "@/assets/service-hialuronico.jpg";
-import serviceBotox from "@/assets/service-botox.jpg";
-import servicePeeling from "@/assets/service-peeling.jpg";
-import serviceMicroblading from "@/assets/service-microblading.jpg";
-import serviceMasaje from "@/assets/service-masaje.jpg";
-
-const services = [
-  { name: "Limpieza Facial Profunda", price: "$45", duration: "60 min", desc: "Extracción, exfoliación enzimática y mascarilla revitalizante.", image: serviceFacial },
-  { name: "Ácido Hialurónico", price: "$280", duration: "45 min", desc: "Relleno dérmico premium para labios, pómulos y surcos.", image: serviceHialuronico },
-  { name: "Botox Preventivo", price: "$220", duration: "30 min", desc: "Toxina botulínica para líneas de expresión y frente.", image: serviceBotox },
-  { name: "Peeling Químico", price: "$95", duration: "45 min", desc: "Renovación celular con ácidos glicólico y mandélico.", image: servicePeeling },
-  { name: "Microblading Cejas", price: "$180", duration: "90 min", desc: "Diseño hiperrealista pelo a pelo con pigmentos premium.", image: serviceMicroblading },
-  { name: "Masaje Relajante", price: "$55", duration: "60 min", desc: "Masaje descontracturante con aromaterapia y piedras calientes.", image: serviceMasaje },
-];
-
-const testimonials = [
-  { name: "Valentina M.", text: "El mejor centro de estética al que he ido. El tratamiento de ácido hialurónico quedó increíble y súper natural.", rating: 5 },
-  { name: "Carolina R.", text: "Me encanta que puedo agendar por el chat a cualquier hora. La limpieza facial profunda es espectacular.", rating: 5 },
-  { name: "Lucía G.", text: "Profesionales de primer nivel. El microblading superó todas mis expectativas. ¡Lo recomiendo 100%!", rating: 5 },
-];
+import HeroSection from "@/components/landing/HeroSection";
+import ServicesSection from "@/components/landing/ServicesSection";
+import GallerySection from "@/components/landing/GallerySection";
+import WhyUsSection from "@/components/landing/WhyUsSection";
+import TestimonialsSection from "@/components/landing/TestimonialsSection";
+import { LogIn, MapPin, Phone, Instagram, Clock, Mail } from "lucide-react";
 
 const Index = () => {
   return (
-    <div className="min-h-screen bg-[#030712] text-white relative overflow-hidden">
-      {/* Background effects */}
+    <div className="min-h-screen bg-noir text-cream relative overflow-hidden">
+      {/* Subtle warm ambient */}
       <div className="fixed inset-0 pointer-events-none">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[600px] bg-cyan-500/5 rounded-full blur-[120px]" />
-        <div className="absolute bottom-0 right-0 w-[600px] h-[400px] bg-blue-600/5 rounded-full blur-[100px]" />
-        <div className="absolute top-1/3 left-0 w-[400px] h-[300px] bg-purple-600/3 rounded-full blur-[80px]" />
-        <div
-          className="absolute inset-0 opacity-[0.03]"
-          style={{
-            backgroundImage:
-              "linear-gradient(rgba(6,182,212,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(6,182,212,0.3) 1px, transparent 1px)",
-            backgroundSize: "60px 60px",
-          }}
-        />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] bg-gold/[0.04] rounded-full blur-[150px]" />
+        <div className="absolute bottom-0 right-0 w-[500px] h-[400px] bg-rose/[0.03] rounded-full blur-[120px]" />
       </div>
 
-      {/* Content */}
       <div className="relative z-10">
         {/* Header */}
-        <header className="flex items-center justify-between px-6 md:px-8 py-5">
+        <header className="flex items-center justify-between px-6 md:px-12 py-6">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-500 flex items-center justify-center shadow-[0_0_20px_rgba(6,182,212,0.4)]">
-              <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold to-gold-light flex items-center justify-center">
+              <span className="text-noir font-serif font-bold text-lg">N</span>
             </div>
             <div>
-              <span className="text-base font-bold tracking-[0.12em] uppercase bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
+              <span className="text-base font-serif font-bold tracking-[0.15em] text-cream">
                 NOVA Estética
               </span>
-              <p className="text-[9px] font-mono text-zinc-600 tracking-widest uppercase">Centro de Belleza Premium</p>
+              <p className="text-[9px] font-sans text-cream/40 tracking-[0.2em] uppercase">Centro de Belleza Premium</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <a href="#servicios" className="hidden md:block text-[11px] text-zinc-400 hover:text-cyan-300 transition-colors font-mono uppercase tracking-wider">
+          <nav className="flex items-center gap-6">
+            <a href="#servicios" className="hidden md:block text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
               Servicios
             </a>
-            <a href="#galeria" className="hidden md:block text-[11px] text-zinc-400 hover:text-cyan-300 transition-colors font-mono uppercase tracking-wider">
+            <a href="#galeria" className="hidden md:block text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
               Resultados
             </a>
-            <a href="#chat" className="hidden md:block text-[11px] text-zinc-400 hover:text-cyan-300 transition-colors font-mono uppercase tracking-wider">
+            <a href="#chat" className="hidden md:block text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
               Agendar
             </a>
             <Link
               to="/auth"
-              className="flex items-center gap-2 text-xs font-mono text-cyan-400/70 hover:text-cyan-300 border border-cyan-500/20 rounded-lg px-3 py-1.5 hover:bg-cyan-500/5 transition-all"
+              className="flex items-center gap-2 text-xs font-sans text-gold/70 hover:text-gold border border-gold/20 rounded-full px-4 py-1.5 hover:bg-gold/5 transition-all"
             >
               <LogIn className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Dashboard</span>
             </Link>
-          </div>
+          </nav>
         </header>
 
-        {/* Hero */}
-        <section className="relative text-center px-4 pt-10 pb-14 overflow-hidden">
-          <div className="absolute inset-0 -z-10">
-            <img src={heroBg} alt="" className="w-full h-full object-cover opacity-20" />
-            <div className="absolute inset-0 bg-gradient-to-b from-[#030712]/60 via-[#030712]/80 to-[#030712]" />
-          </div>
-
-          <ScrollReveal>
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-cyan-500/20 bg-cyan-500/5 mb-6">
-              <Star className="w-3 h-3 text-cyan-400" />
-              <span className="text-[11px] font-mono text-cyan-300/70 uppercase tracking-wider">
-                +500 clientes satisfechos — ⭐ 4.9 en Google
-              </span>
-            </div>
-          </ScrollReveal>
-
-          <ScrollReveal delay={0.1}>
-            <h1 className="text-4xl md:text-6xl font-black tracking-tight mb-5">
-              <span className="bg-gradient-to-b from-white via-cyan-100 to-cyan-300/60 bg-clip-text text-transparent">
-                Tu Belleza,
-              </span>
-              <br />
-              <span className="bg-gradient-to-r from-cyan-400 via-blue-400 to-purple-400 bg-clip-text text-transparent">
-                Nuestra Ciencia
-              </span>
-            </h1>
-          </ScrollReveal>
-
-          <ScrollReveal delay={0.2}>
-            <p className="text-sm md:text-base text-zinc-400 max-w-xl mx-auto leading-relaxed mb-8">
-              Centro de estética avanzada con los mejores profesionales y tecnología de última generación.
-              <br className="hidden md:block" />
-              Agenda tu cita en segundos con nuestra asistente virtual.
-            </p>
-          </ScrollReveal>
-
-          <ScrollReveal delay={0.3}>
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <motion.a
-                href="#chat"
-                className="inline-flex items-center gap-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-6 py-3 rounded-xl transition-all shadow-[0_0_25px_rgba(6,182,212,0.3)] hover:shadow-[0_0_35px_rgba(6,182,212,0.5)] text-sm"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                Agendar Cita con IA
-                <ChevronRight className="w-4 h-4" />
-              </motion.a>
-              <motion.a
-                href="#servicios"
-                className="inline-flex items-center gap-2 border border-zinc-700 hover:border-cyan-500/30 text-zinc-300 hover:text-white px-6 py-3 rounded-xl transition-all text-sm"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.97 }}
-              >
-                Ver Servicios
-              </motion.a>
-            </div>
-          </ScrollReveal>
-        </section>
+        <HeroSection />
 
         {/* Info bar */}
-        <ScrollReveal className="px-4 pb-12">
-          <div className="max-w-4xl mx-auto flex flex-wrap justify-center gap-6 text-zinc-500 text-xs font-mono">
+        <ScrollReveal className="px-4 pb-16">
+          <div className="max-w-4xl mx-auto flex flex-wrap justify-center gap-8 text-cream/40 text-xs font-sans">
             <div className="flex items-center gap-2">
-              <MapPin className="w-3.5 h-3.5 text-cyan-500/50" />
+              <MapPin className="w-3.5 h-3.5 text-gold/50" />
               Av. Libertador 1234, Buenos Aires
             </div>
             <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-cyan-500/50" />
+              <Clock className="w-3.5 h-3.5 text-gold/50" />
               Lun–Sáb 9:00–20:00
             </div>
             <div className="flex items-center gap-2">
-              <Phone className="w-3.5 h-3.5 text-cyan-500/50" />
+              <Phone className="w-3.5 h-3.5 text-gold/50" />
               +54 11 5555-1234
             </div>
             <div className="flex items-center gap-2">
-              <Instagram className="w-3.5 h-3.5 text-cyan-500/50" />
+              <Instagram className="w-3.5 h-3.5 text-gold/50" />
               @nova.estetica
             </div>
           </div>
         </ScrollReveal>
 
-        {/* Services */}
-        <section id="servicios" className="px-4 md:px-8 pb-16">
-          <div className="max-w-5xl mx-auto">
-            <ScrollReveal>
-              <div className="text-center mb-8">
-                <h2 className="text-2xl md:text-3xl font-bold mb-2 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                  Nuestros Servicios
-                </h2>
-                <p className="text-xs text-zinc-500 font-mono uppercase tracking-widest">Tratamientos premium con resultados garantizados</p>
-              </div>
-            </ScrollReveal>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {services.map((s, i) => (
-                <ScrollReveal key={i} delay={i * 0.08}>
-                  <ServiceCard {...s} />
-                </ScrollReveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* Before/After Gallery */}
-        <ScrollReveal>
-          <section id="galeria">
-            <BeforeAfterGallery />
-          </section>
-        </ScrollReveal>
-
-        {/* Why us */}
-        <section className="px-4 md:px-8 pb-16">
-          <div className="max-w-4xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-4">
-            {[
-              { icon: Brain, title: "Profesionales Certificados", desc: "Equipo médico con más de 10 años de experiencia en estética avanzada." },
-              { icon: Shield, title: "Productos Premium", desc: "Trabajamos con marcas líderes: Allergan, Teoxane, SkinCeuticals." },
-              { icon: Zap, title: "Agendamiento con IA", desc: "Reserva tu cita 24/7 con nuestra asistente virtual impulsada por IA." },
-            ].map((f, i) => (
-              <ScrollReveal key={i} delay={i * 0.1}>
-                <div className="p-6 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-sm hover:border-cyan-500/20 transition-all duration-500 group">
-                  <div className="w-10 h-10 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center mb-4 group-hover:shadow-[0_0_15px_rgba(6,182,212,0.2)] transition-all">
-                    <f.icon className="w-5 h-5 text-cyan-400" />
-                  </div>
-                  <h3 className="text-sm font-semibold text-white mb-2 tracking-wide">{f.title}</h3>
-                  <p className="text-xs text-zinc-500 leading-relaxed">{f.desc}</p>
-                </div>
-              </ScrollReveal>
-            ))}
-          </div>
-        </section>
-
-        {/* Testimonials */}
-        <section className="px-4 md:px-8 pb-16">
-          <div className="max-w-4xl mx-auto">
-            <ScrollReveal>
-              <h2 className="text-xl font-bold text-center mb-6 bg-gradient-to-r from-white to-zinc-400 bg-clip-text text-transparent">
-                Lo que dicen nuestros clientes
-              </h2>
-            </ScrollReveal>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {testimonials.map((t, i) => (
-                <ScrollReveal key={i} delay={i * 0.1}>
-                  <div className="p-5 rounded-xl border border-zinc-800/80 bg-zinc-900/30 backdrop-blur-sm">
-                    <div className="flex gap-0.5 mb-3">
-                      {Array.from({ length: t.rating }).map((_, j) => (
-                        <Star key={j} className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                      ))}
-                    </div>
-                    <p className="text-xs text-zinc-400 leading-relaxed mb-3 italic">"{t.text}"</p>
-                    <p className="text-[11px] text-cyan-400/70 font-semibold">{t.name}</p>
-                  </div>
-                </ScrollReveal>
-              ))}
-            </div>
-          </div>
-        </section>
+        <ServicesSection />
+        <GallerySection />
+        <WhyUsSection />
+        <TestimonialsSection />
 
         {/* Chat CTA */}
         <ScrollReveal>
-          <section id="chat" className="px-4 pb-6">
-            <div className="text-center mb-6">
-              <h2 className="text-xl md:text-2xl font-bold mb-2 bg-gradient-to-r from-cyan-300 to-blue-400 bg-clip-text text-transparent">
+          <section id="chat" className="px-4 pb-8">
+            <div className="text-center mb-8">
+              <p className="text-xs font-sans uppercase tracking-[0.2em] text-gold/60 mb-3">Reserva Online</p>
+              <h2 className="text-2xl md:text-3xl font-serif font-bold mb-3 text-cream">
                 Agenda tu cita ahora
               </h2>
-              <p className="text-xs text-zinc-500">Habla con nuestra asistente virtual. Disponible 24/7.</p>
+              <p className="text-sm text-cream/40 font-sans max-w-md mx-auto">
+                Habla con nuestra asistente virtual. Disponible las 24 horas, los 7 días de la semana.
+              </p>
             </div>
             <AuraChat />
           </section>
         </ScrollReveal>
 
         {/* Footer */}
-        <footer className="text-center py-8 border-t border-zinc-900 space-y-2">
-          <p className="text-xs text-zinc-600">
-            NOVA Estética — Av. Libertador 1234, Buenos Aires — +54 11 5555-1234
-          </p>
-          <p className="text-[10px] font-mono text-zinc-700 uppercase tracking-[0.3em]">
-            Powered by Aura AI — Agente Vendedor Autónomo
-          </p>
+        <footer className="border-t border-cream/10 mt-8">
+          <div className="max-w-5xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
+            <div>
+              <h4 className="font-serif text-sm font-bold text-cream mb-3">NOVA Estética</h4>
+              <p className="text-xs text-cream/30 leading-relaxed font-sans">
+                Centro de belleza premium con los mejores profesionales y tecnología de última generación en Buenos Aires.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-serif text-sm font-bold text-cream mb-3">Contacto</h4>
+              <div className="space-y-2 text-xs text-cream/30 font-sans">
+                <p className="flex items-center justify-center md:justify-start gap-2"><MapPin className="w-3 h-3 text-gold/40" /> Av. Libertador 1234, Buenos Aires</p>
+                <p className="flex items-center justify-center md:justify-start gap-2"><Phone className="w-3 h-3 text-gold/40" /> +54 11 5555-1234</p>
+                <p className="flex items-center justify-center md:justify-start gap-2"><Mail className="w-3 h-3 text-gold/40" /> hola@novaestetica.com</p>
+              </div>
+            </div>
+            <div>
+              <h4 className="font-serif text-sm font-bold text-cream mb-3">Horarios</h4>
+              <div className="space-y-1 text-xs text-cream/30 font-sans">
+                <p>Lunes a Viernes: 9:00 – 20:00</p>
+                <p>Sábados: 9:00 – 18:00</p>
+                <p>Domingos: Cerrado</p>
+              </div>
+            </div>
+          </div>
+          <div className="text-center py-6 border-t border-cream/5">
+            <p className="text-[10px] font-sans text-cream/20 uppercase tracking-[0.3em]">
+              © 2026 NOVA Estética — Todos los derechos reservados
+            </p>
+          </div>
         </footer>
       </div>
     </div>
