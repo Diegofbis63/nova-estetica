@@ -15,15 +15,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     try {
         console.log("Seeding services via API...");
+        // First, let's clear existing services to avoid duplicates since we don't have a unique constraint
+        await db.query("DELETE FROM services");
+
         for (const s of services) {
             await db.query(
-                "INSERT INTO services (title, price, duration, description, active) VALUES ($1, $2, $3, $4, true) ON CONFLICT (title) DO NOTHING",
+                "INSERT INTO services (title, price, duration, description, active) VALUES ($1, $2, $3, $4, true)",
                 [s.title, s.price, s.duration, s.description]
             );
         }
         return res.status(200).json({ success: true, message: "Seed complete" });
-    } catch (e: any) {
+    } catch (e: unknown) {
         console.error(e);
-        return res.status(500).json({ error: e.message });
+        const error = e as Error;
+        return res.status(500).json({ error: error.message });
     }
 }
