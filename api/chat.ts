@@ -76,43 +76,55 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
 
     if (messages.length === 0) return state;
 
-    let lastAsked = '';
+    let lastAssistantAsked = '';
+    // Look at the last assistant message to see what we are expecting
+    const assistantMsgs = messages.filter(m => m.role === 'assistant');
+    if (assistantMsgs.length > 0) {
+        const lastBotMsg = assistantMsgs[assistantMsgs.length - 1].content.toLowerCase();
+        if (lastBotMsg.includes("tu nombre")) lastAssistantAsked = 'name';
+        else if (lastBotMsg.includes("whatsapp") || lastBotMsg.includes("teléfono")) lastAssistantAsked = 'phone';
+        else if (lastBotMsg.includes("servicio") || lastBotMsg.includes("tratamiento")) lastAssistantAsked = 'service';
+    }
+
     for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
-        if (msg.role === 'assistant') {
-            const lowContent = msg.content.toLowerCase();
-            if (lowContent.includes("tu nombre")) {
-                lastAsked = 'name';
-            } else if (lowContent.includes("whatsapp") || lowContent.includes("teléfono")) {
-                lastAsked = 'phone';
-            } else if (lowContent.includes("servicio") || lowContent.includes("tratamiento")) {
-                lastAsked = 'service';
-            } else if (lowContent.includes("horario disponible")) {
-                lastAsked = 'availability';
-            }
-        } else if (msg.role === 'user') {
+        if (msg.role === 'user') {
             const text = msg.content;
 
-            // Try to extract service
+            // 1. Extract Service
             if (!state.interestedService) {
                 const svc = findBestServiceMatch(text, services);
-                if (svc) state.interestedService = svc;
+                if (svc) {
+                    state.interestedService = svc;
+                    // If we found the service in THIS message, we stop here for this message processing
+                    // to avoid extracting "quiero turno para x" as a name in the same turn.
+                    continue;
+                }
             }
 
-            // Try to extract name (Guard rail: no numbers, at least 3 chars)
+            // 2. Extract Name
+            // Only extract if we have a service but no name
             if (state.interestedService && !state.clientName) {
-                if (!/\d/.test(text)) {
-                    const cleaned = text.replace(/^(hola\s+)?(soy|me llamo|mi nombre es)\s+/i, '').trim();
-                    // exclude basic feedback words
-                    const isCommonWord = /^(si|sí|no|gracias|ok|dale|perfecto|hola)$/i.test(cleaned);
-                    if (cleaned.length >= 3 && !isCommonWord && cleaned.toLowerCase() !== state.interestedService?.toLowerCase()) {
-                        // Capitalize correctly
-                        state.clientName = cleaned.replace(/\b\w/g, l => l.toUpperCase());
+                const nameKeywords = /^(soy|me llamo|mi nombre es)\s+/i;
+                const hasNameKeyword = nameKeywords.test(text);
+
+                // Only extract if bot asked for name OR user used keyword
+                // AND ensure it doesn't look like a service request
+                if (lastAssistantAsked === 'name' || hasNameKeyword) {
+                    if (!/\d/.test(text)) {
+                        const cleaned = text.replace(nameKeywords, '').replace(/^(hola\s+)?/i, '').trim();
+                        const isCommonWord = /^(si|sí|no|gracias|ok|dale|perfecto|hola)$/i.test(cleaned);
+                        const isSentence = cleaned.split(' ').length > 4 || cleaned.toLowerCase().includes('turno') || cleaned.toLowerCase().includes('servicio');
+
+                        if (cleaned.length >= 3 && !isCommonWord && !isSentence && cleaned.toLowerCase() !== state.interestedService.toLowerCase()) {
+                            state.clientName = cleaned.replace(/\b\w/g, l => l.toUpperCase());
+                            if (!hasNameKeyword) continue; // consume message
+                        }
                     }
                 }
             }
 
-            // Try to extract phone (Guard rail: minimum digits)
+            // 3. Extract Phone
             if (state.interestedService && state.clientName && !state.clientPhone) {
                 const phoneMatch = text.match(/(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
                 if (phoneMatch && phoneMatch[0].replace(/\D/g, '').length >= 8) {
@@ -122,7 +134,7 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
         }
     }
 
-    // Appointment Parsing (Bot proposed this, so it could be in allText)
+    // Appointment Parsing
     const allText = messages.map(m => m.content).join('\n');
     const dateProposalMatch = allText.match(/(\d{4})-(\d{2})-(\d{2})/);
     if (dateProposalMatch) state.pendingDate = dateProposalMatch[0];
@@ -130,7 +142,7 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
     const timeMatch = allText.match(/(\d{1,2}):(\d{2})/);
     if (timeMatch) state.pendingTime = timeMatch[0];
 
-    // Determine Strict Stage
+    // Stage update
     if (messages.length <= 1) state.stage = 'greeting';
     else if (!state.interestedService) state.stage = 'service_selection';
     else if (!state.clientName) state.stage = 'name_collection';
