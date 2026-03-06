@@ -19,6 +19,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface Lead {
   id: string;
@@ -61,6 +69,21 @@ export default function Dashboard() {
   // Service form state
   const [isEditing, setIsEditing] = useState(false);
   const [currentService, setCurrentService] = useState<Partial<Service>>({});
+
+  // Dialog states
+  const [isChatModalOpen, setIsChatModalOpen] = useState(false);
+  const [selectedLeadForChat, setSelectedLeadForChat] = useState<Lead | null>(null);
+
+  const [isNewAppointmentModalOpen, setIsNewAppointmentModalOpen] = useState(false);
+  const [selectedLeadForAppt, setSelectedLeadForAppt] = useState<Lead | null>(null);
+
+  const [isEditAppointmentModalOpen, setIsEditAppointmentModalOpen] = useState(false);
+  const [selectedAppointmentForEdit, setSelectedAppointmentForEdit] = useState<Appointment | null>(null);
+
+  // Form states for simple modal inputs
+  const [formDate, setFormDate] = useState("");
+  const [formTime, setFormTime] = useState("");
+  const [formService, setFormService] = useState("");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -144,6 +167,26 @@ export default function Dashboard() {
       setCurrentService({});
     }
   });
+
+  const createAppointment = useMutation({
+    mutationFn: async ({ lead_id, date_time, service_type }: { lead_id: string, date_time: string, service_type: string }) => {
+      const res = await fetch('/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id, date_time, service_type })
+      });
+      if (!res.ok) throw new Error('Failed to create appointment');
+      return res.json();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      setIsNewAppointmentModalOpen(false);
+      setFormDate("");
+      setFormTime("");
+      setFormService("");
+    }
+  });
+
 
   const deleteService = useMutation({
     mutationFn: async (id: string) => {
@@ -396,10 +439,24 @@ export default function Dashboard() {
                           </TableCell>
                           <TableCell className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button className="p-2 bg-cream/5 border border-cream/10 hover:bg-gold/10 hover:text-gold hover:border-gold/20 text-cream/40 rounded-lg transition-all" title="Ver Conversación (AI)">
+                              <button
+                                onClick={() => {
+                                  setSelectedLeadForChat(l);
+                                  setIsChatModalOpen(true);
+                                }}
+                                className="p-2 bg-cream/5 border border-cream/10 hover:bg-gold/10 hover:text-gold hover:border-gold/20 text-cream/40 rounded-lg transition-all"
+                                title="Ver Conversación (AI)"
+                              >
                                 <MessageSquare className="w-4 h-4" />
                               </button>
-                              <button className="p-2 bg-cream/5 border border-cream/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 text-cream/40 rounded-lg transition-all" title="Convertir a Cita Manual">
+                              <button
+                                onClick={() => {
+                                  setSelectedLeadForAppt(l);
+                                  setIsNewAppointmentModalOpen(true);
+                                }}
+                                className="p-2 bg-cream/5 border border-cream/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 text-cream/40 rounded-lg transition-all"
+                                title="Convertir a Cita Manual"
+                              >
                                 <Plus className="w-4 h-4" />
                               </button>
                             </div>
@@ -459,9 +516,9 @@ export default function Dashboard() {
                         </TableCell>
                         <TableCell className="px-6 py-4">
                           <Badge variant="outline" className={`text-[9px] font-sans uppercase tracking-widest rounded-full ${a.status === 'confirmed' ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
-                              a.status === 'canceled' ? "text-rose border-rose/20 bg-rose/5" :
-                                a.status === 'pending' || a.status === 'scheduled' ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
-                                  "text-cream/20 border-cream/5 bg-cream/5"
+                            a.status === 'canceled' ? "text-rose border-rose/20 bg-rose/5" :
+                              a.status === 'pending' || a.status === 'scheduled' ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
+                                "text-cream/20 border-cream/5 bg-cream/5"
                             }`}>
                             {a.status === 'confirmed' ? "Confirmada" : a.status === 'canceled' ? "Cancelada" : a.status === 'pending' || a.status === 'scheduled' ? "Pendiente" : a.status}
                           </Badge>
@@ -481,7 +538,17 @@ export default function Dashboard() {
                                   <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar (Contactado)
                                 </DropdownMenuItem>
                               )}
-                              <DropdownMenuItem className="cursor-pointer text-cream/70 focus:bg-gold/10 focus:text-gold transition-colors font-sans text-xs flex items-center gap-2">
+                              <DropdownMenuItem
+                                onClick={() => {
+                                  setSelectedAppointmentForEdit(a);
+                                  const d = new Date(a.date_time);
+                                  setFormDate(d.toISOString().split('T')[0]);
+                                  setFormTime(d.toTimeString().split(' ')[0].slice(0, 5));
+                                  setFormService(a.service_type || "");
+                                  setIsEditAppointmentModalOpen(true);
+                                }}
+                                className="cursor-pointer text-cream/70 focus:bg-gold/10 focus:text-gold transition-colors font-sans text-xs flex items-center gap-2"
+                              >
                                 <Edit className="w-3.5 h-3.5" /> Editar (Reprogramar)
                               </DropdownMenuItem>
                               <DropdownMenuSeparator className="bg-cream/5" />
@@ -663,6 +730,181 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* DIALOGS */}
+
+      {/* 1. View Chat Dialog */}
+      <Dialog open={isChatModalOpen} onOpenChange={setIsChatModalOpen}>
+        <DialogContent className="bg-noir border border-gold/20 text-cream/90 max-w-md">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl flex items-center gap-2">
+              <MessageSquare className="w-5 h-5 text-gold" />
+              Historial de IA
+            </DialogTitle>
+            <DialogDescription className="text-cream/50">
+              Conversación con {selectedLeadForChat?.client_name}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="bg-noir-light/50 p-4 rounded-xl border border-cream/5 h-64 flex flex-col items-center justify-center text-center mt-4">
+            <MessageSquare className="w-10 h-10 text-cream/10 mb-2" />
+            <p className="text-sm text-cream/40 italic">Las transcripciones completas no están habilitadas en esta demostración base.</p>
+            <p className="text-xs text-cream/20 mt-1">Status Actual: {selectedLeadForChat?.status}</p>
+          </div>
+          <DialogFooter>
+            <button onClick={() => setIsChatModalOpen(false)} className="px-4 py-2 border border-cream/10 rounded-lg text-cream/60 hover:bg-cream/5">Cerrar</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. Convert to Appointment Dialog */}
+      <Dialog open={isNewAppointmentModalOpen} onOpenChange={setIsNewAppointmentModalOpen}>
+        <DialogContent className="bg-noir border border-gold/20 text-cream/90">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl flex items-center gap-2">
+              <Plus className="w-5 h-5 text-emerald-400" />
+              Convertir a Cita
+            </DialogTitle>
+            <DialogDescription className="text-cream/50">
+              Agendar cita manual para {selectedLeadForAppt?.client_name}.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (selectedLeadForAppt && formDate && formTime && formService) {
+                createAppointment.mutate({
+                  lead_id: selectedLeadForAppt.id,
+                  date_time: `${formDate}T${formTime}:00Z`,
+                  service_type: formService
+                });
+              }
+            }}
+            className="flex flex-col gap-4 mt-4"
+          >
+            <div>
+              <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Servicio de Interés</label>
+              <select
+                value={formService}
+                onChange={(e) => setFormService(e.target.value)}
+                required
+                className="w-full bg-noir-light border border-cream/10 rounded-lg px-3 py-2 outline-none focus:border-gold/50"
+              >
+                <option value="" disabled>Seleccionar...</option>
+                {services.map(s => <option key={s.id} value={s.title}>{s.title}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Fecha</label>
+                <input
+                  type="date"
+                  value={formDate}
+                  onChange={e => setFormDate(e.target.value)}
+                  required
+                  className="w-full bg-noir-light border border-cream/10 rounded-lg px-3 py-2 outline-none focus:border-gold/50 [color-scheme:dark]"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Hora</label>
+                <input
+                  type="time"
+                  value={formTime}
+                  onChange={e => setFormTime(e.target.value)}
+                  required
+                  className="w-full bg-noir-light border border-cream/10 rounded-lg px-3 py-2 outline-none focus:border-gold/50 [color-scheme:dark]"
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <button type="button" onClick={() => setIsNewAppointmentModalOpen(false)} className="px-4 py-2 border border-cream/10 rounded-lg text-cream/60 hover:bg-cream/5">Cancelar</button>
+              <button disabled={createAppointment.isPending} type="submit" className="px-4 py-2 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg hover:bg-emerald-500/20 font-medium">
+                {createAppointment.isPending ? 'Creando...' : 'Agendar Cita'}
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. Edit Appointment Dialog */}
+      <Dialog open={isEditAppointmentModalOpen} onOpenChange={setIsEditAppointmentModalOpen}>
+        <DialogContent className="bg-noir border border-gold/20 text-cream/90">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl flex items-center gap-2">
+              <Edit className="w-5 h-5 text-gold" />
+              Reprogramar Cita
+            </DialogTitle>
+            <DialogDescription className="text-cream/50">
+              Cambia la fecha o el horario de esta cita.
+            </DialogDescription>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (selectedAppointmentForEdit && formDate && formTime) {
+                // We use the existing updateAppointment hook, but we need to supply date_time and service.
+                // Our updateAppointment currently only sends 'status' in mutationFn. Let's fix that just above or use a direct fetch.
+                fetch(`/api/appointments?id=${selectedAppointmentForEdit.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    date_time: `${formDate}T${formTime}:00Z`,
+                    service_type: formService
+                  })
+                }).then(() => {
+                  queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+                  setIsEditAppointmentModalOpen(false);
+                });
+              }
+            }}
+            className="flex flex-col gap-4 mt-4"
+          >
+            <div>
+              <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Servicio Reservado</label>
+              <select
+                value={formService}
+                onChange={(e) => setFormService(e.target.value)}
+                required
+                className="w-full bg-noir-light border border-cream/10 rounded-lg px-3 py-2 outline-none focus:border-gold/50"
+              >
+                <option value="" disabled>Seleccionar...</option>
+                {/* Fallback to original value if the service no longer exists in DB list */}
+                {!services.some(s => s.title === formService) && formService !== "" && (
+                  <option value={formService}>{formService}</option>
+                )}
+                {services.map(s => <option key={s.id} value={s.title}>{s.title}</option>)}
+              </select>
+            </div>
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Fecha</label>
+                <input
+                  type="date"
+                  value={formDate}
+                  onChange={e => setFormDate(e.target.value)}
+                  required
+                  className="w-full bg-noir-light border border-cream/10 rounded-lg px-3 py-2 outline-none focus:border-gold/50 [color-scheme:dark]"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Hora</label>
+                <input
+                  type="time"
+                  value={formTime}
+                  onChange={e => setFormTime(e.target.value)}
+                  required
+                  className="w-full bg-noir-light border border-cream/10 rounded-lg px-3 py-2 outline-none focus:border-gold/50 [color-scheme:dark]"
+                />
+              </div>
+            </div>
+            <DialogFooter className="mt-4">
+              <button type="button" onClick={() => setIsEditAppointmentModalOpen(false)} className="px-4 py-2 border border-cream/10 rounded-lg text-cream/60 hover:bg-cream/5">Cancelar</button>
+              <button type="submit" className="px-4 py-2 bg-gold text-noir rounded-lg hover:shadow-[0_0_15px_rgba(238,197,143,0.5)] font-bold transition-shadow">
+                Guardar Cambios
+              </button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

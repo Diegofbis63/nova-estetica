@@ -54,6 +54,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
             return res.status(200).json({ appointment: result.rows[0] });
 
+        } else if (req.method === 'POST') {
+            const { lead_id, date_time, service_type } = req.body;
+
+            if (!lead_id || !date_time || !service_type) {
+                return res.status(400).json({ error: 'Missing required fields' });
+            }
+
+            const query = `
+                INSERT INTO appointments (lead_id, date_time, service_type, status)
+                VALUES ($1, $2, $3, 'confirmed')
+                RETURNING *
+            `;
+            const result = await db.query(query, [lead_id, date_time, service_type]);
+
+            await db.query(`UPDATE leads SET status = 'qualified' WHERE id = $1`, [lead_id]);
+
+            return res.status(201).json({ appointment: result.rows[0] });
+
         } else if (req.method === 'DELETE') {
             const { id } = req.query;
 
