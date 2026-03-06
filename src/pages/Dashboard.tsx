@@ -38,6 +38,7 @@ interface Lead {
   status: string;
   intent_score: number;
   created_at: string;
+  chat_history?: { role: string; content: string }[];
 }
 
 interface Appointment {
@@ -138,7 +139,7 @@ export default function Dashboard() {
     onMutate: async (newAppt) => {
       await queryClient.cancelQueries({ queryKey: ['dashboard'] });
       const previous = queryClient.getQueryData(['dashboard']);
-      queryClient.setQueryData(['dashboard'], (old: any) => {
+      queryClient.setQueryData(['dashboard'], (old: { appointments: Appointment[], leads: Lead[] } | undefined) => {
         if (!old) return old;
         return {
           ...old,
@@ -205,7 +206,7 @@ export default function Dashboard() {
   });
 
   const reorderServices = useMutation({
-    mutationFn: async (updated: any[]) => {
+    mutationFn: async (updated: { id: string, sort_order: number }[]) => {
       const res = await fetch('/api/services', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -761,10 +762,25 @@ export default function Dashboard() {
               Conversación con {selectedLeadForChat?.client_name}
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-noir-light/50 p-4 rounded-xl border border-cream/5 h-64 flex flex-col items-center justify-center text-center mt-4">
-            <MessageSquare className="w-10 h-10 text-cream/10 mb-2" />
-            <p className="text-sm text-cream/40 italic">Las transcripciones completas no están habilitadas en esta demostración base.</p>
-            <p className="text-xs text-cream/20 mt-1">Status Actual: {selectedLeadForChat?.status}</p>
+          <div className="bg-noir-light/50 p-4 rounded-xl border border-cream/5 h-96 overflow-y-auto flex flex-col gap-3 mt-4">
+            {selectedLeadForChat?.chat_history && Array.isArray(selectedLeadForChat.chat_history) && selectedLeadForChat.chat_history.length > 0 ? (
+              selectedLeadForChat.chat_history.map((msg: { role: string, content: string }, i: number) => (
+                <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                  <div className={`max-w-[85%] rounded-xl px-4 py-2 text-sm ${msg.role === 'user'
+                    ? 'bg-emerald-500/20 text-emerald-100 rounded-tr-sm border border-emerald-500/20'
+                    : 'bg-cream/5 text-cream/80 rounded-tl-sm border border-cream/10'
+                    }`}>
+                    {msg.content}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="h-full flex flex-col items-center justify-center text-center">
+                <MessageSquare className="w-10 h-10 text-cream/10 mb-2" />
+                <p className="text-sm text-cream/40 italic">No hay transcripción disponible para este contacto.</p>
+                <p className="text-xs text-cream/20 mt-1">Status Actual: {selectedLeadForChat?.status || 'Pendiente'}</p>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <button onClick={() => setIsChatModalOpen(false)} className="px-4 py-2 border border-cream/10 rounded-lg text-cream/60 hover:bg-cream/5">Cerrar</button>

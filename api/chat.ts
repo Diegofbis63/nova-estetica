@@ -56,17 +56,17 @@ function findBestServiceMatch(userInput: string, services: Array<{ title: string
 }
 
 interface ConvState {
-    clientEmail: string | null;
+    clientName: string | null;
     clientPhone: string | null;
     interestedService: string | null;
-    stage: 'greeting' | 'service_selection' | 'availability_proposal' | 'contact_info_collection' | 'done';
+    stage: 'greeting' | 'service_selection' | 'name_collection' | 'phone_collection' | 'availability_proposal' | 'done';
     pendingDate: string | null;
     pendingTime: string | null;
 }
 
 function extractState(messages: Array<{ role: string; content: string }>, services: Array<{ title: string; price: number }>): ConvState {
     const state: ConvState = {
-        clientEmail: null,
+        clientName: null,
         clientPhone: null,
         interestedService: null,
         stage: 'greeting',
@@ -76,44 +76,66 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
 
     if (messages.length === 0) return state;
 
+    let lastAsked = '';
+    for (let i = 0; i < messages.length; i++) {
+        const msg = messages[i];
+        if (msg.role === 'assistant') {
+            const lowContent = msg.content.toLowerCase();
+            if (lowContent.includes("tu nombre")) {
+                lastAsked = 'name';
+            } else if (lowContent.includes("whatsapp") || lowContent.includes("teléfono")) {
+                lastAsked = 'phone';
+            } else if (lowContent.includes("servicio") || lowContent.includes("tratamiento")) {
+                lastAsked = 'service';
+            } else if (lowContent.includes("horario disponible")) {
+                lastAsked = 'availability';
+            }
+        } else if (msg.role === 'user') {
+            const text = msg.content;
+
+            // Try to extract service
+            if (!state.interestedService) {
+                const svc = findBestServiceMatch(text, services);
+                if (svc) state.interestedService = svc;
+            }
+
+            // Try to extract name (Guard rail: no numbers, at least 3 chars)
+            if (state.interestedService && !state.clientName) {
+                if (!/\d/.test(text)) {
+                    const cleaned = text.replace(/^(hola\s+)?(soy|me llamo|mi nombre es)\s+/i, '').trim();
+                    // exclude basic feedback words
+                    const isCommonWord = /^(si|sí|no|gracias|ok|dale|perfecto|hola)$/i.test(cleaned);
+                    if (cleaned.length >= 3 && !isCommonWord && cleaned.toLowerCase() !== state.interestedService?.toLowerCase()) {
+                        // Capitalize correctly
+                        state.clientName = cleaned.replace(/\b\w/g, l => l.toUpperCase());
+                    }
+                }
+            }
+
+            // Try to extract phone (Guard rail: minimum digits)
+            if (state.interestedService && state.clientName && !state.clientPhone) {
+                const phoneMatch = text.match(/(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
+                if (phoneMatch && phoneMatch[0].replace(/\D/g, '').length >= 8) {
+                    state.clientPhone = phoneMatch[0].trim();
+                }
+            }
+        }
+    }
+
+    // Appointment Parsing (Bot proposed this, so it could be in allText)
     const allText = messages.map(m => m.content).join('\n');
-    const userMessages = messages.filter(m => m.role === 'user');
-    const allUserText = userMessages.map(m => m.content).join('\n');
-
-    // Get last and previous user messages
-    const lastUserMsg = userMessages.length > 0 ? userMessages[userMessages.length - 1].content : "";
-    const previousUserMsg = userMessages.length > 1 ? userMessages[userMessages.length - 2].content : "";
-
-    // 1. Service Detection (Only evaluate user input to avoid "echo hallucination")
-    state.interestedService = findBestServiceMatch(lastUserMsg, services);
-
-    // If not found in the last message, check previous msg (if we are retrying)
-    if (!state.interestedService && previousUserMsg) {
-        state.interestedService = findBestServiceMatch(previousUserMsg, services);
-    }
-
-    // 2. Contact Detection (Only look at what the user gave us)
-    const emailMatch = allUserText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
-    if (emailMatch) state.clientEmail = emailMatch[0].toLowerCase();
-
-    const phoneMatch = allUserText.match(/(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
-    if (phoneMatch && phoneMatch[0].replace(/\D/g, '').length >= 8) {
-        state.clientPhone = phoneMatch[0].trim();
-    }
-
-    // 3. Appointment Extraction (Bot proposed this, so it could be in allText)
-    const dateProposalMatch = allText.match(/(\d{4})-(\d{2})-(\d{2})/); // ISO Date in text
+    const dateProposalMatch = allText.match(/(\d{4})-(\d{2})-(\d{2})/);
     if (dateProposalMatch) state.pendingDate = dateProposalMatch[0];
 
     const timeMatch = allText.match(/(\d{1,2}):(\d{2})/);
     if (timeMatch) state.pendingTime = timeMatch[0];
 
-    // Update Stage
+    // Determine Strict Stage
     if (messages.length <= 1) state.stage = 'greeting';
     else if (!state.interestedService) state.stage = 'service_selection';
-    else if (!state.pendingDate || !state.pendingTime) state.stage = 'availability_proposal';
-    else if (!state.clientEmail && !state.clientPhone) state.stage = 'contact_info_collection';
-    else state.stage = 'done';
+    else if (!state.clientName) state.stage = 'name_collection';
+    else if (!state.clientPhone) state.stage = 'phone_collection';
+    else state.stage = 'availability_proposal';
 
     return state;
 }
@@ -125,26 +147,29 @@ function generateResponse(
     isBookingConfirmed: boolean
 ): string {
     if (isBookingConfirmed) {
-        return `¡Excelente! 🎉 He confirmado tu turno para **${state.interestedService}** el día **${state.pendingDate}** a las **${state.pendingTime}hs**. Estaremos esperándote en NOVA Estética para brindarte una experiencia única de lujo. Que tengas un día maravilloso. ✨ ¡Adiós!`;
+        return `¡Excelente! 🎉 He confirmado tu turno para **${state.interestedService}** el día **${state.pendingDate}** a las **${state.pendingTime}hs**. Estaremos esperándote en NOVA Estética para brindarte una experiencia única de lujo.\n\nQue tengas un día maravilloso. ✨ ¡Adiós!`;
     }
 
     switch (state.stage) {
         case 'greeting':
-            return "¡Hola! Bienvenido a **NOVA Estética**. 😊 Soy tu asistente virtual y estoy aquí para ayudarte a lucir y sentirte increíble. ¿Te gustaría agendar un turno para uno de nuestros tratamientos exclusivos hoy?";
+            return "¡Hola! Bienvenido a **NOVA Estética**. 😊 Soy tu asistente virtual y estoy aquí para ayudarte a lucir y sentirte increíble.\n\n¿Te gustaría agendar un turno para uno de nuestros tratamientos exclusivos hoy?";
 
         case 'service_selection': {
             const svcList = services.map(s => `• **${s.title}**`).join('\n');
-            return `¡Me encantaría ayudarte! ✨ ¿Para qué servicio te gustaría agendar? Actualmente disponemos de:\n\n${svcList}\n\nDime cuál prefieres y buscamos un espacio para ti.`;
+            return `¡Me encantaría ayudarte! ✨ ¿Qué tratamiento o servicio estás buscando? Nuestras opciones son:\n\n${svcList}\n\nDime cuál prefieres para comenzar.`;
         }
+
+        case 'name_collection':
+            return `¡Excelente elección el **${state.interestedService}**! ✨ Para poder brindarte una atención personalizada, ¿podrías decirme tu nombre y apellido? (Procura ingresar tu nombre sin números).`;
+
+        case 'phone_collection':
+            return `¡Un gusto conocerte, **${state.clientName}**! 😊\n\nPara poder enviarte los detalles de tu turno y registrar tu perfil, indícame tu número de WhatsApp.`;
 
         case 'availability_proposal':
             if (availableSlot) {
-                return `¡Perfecto! Para **${state.interestedService}**, el próximo horario disponible que tengo es el **${availableSlot.date} a las ${availableSlot.time}hs**. 🗓️ ¿Te queda bien este horario o prefieres buscar otro?`;
+                return `¡Perfecto, ${state.clientName}! Ya registré tus datos provisoriamente. 🌟\n\nPara **${state.interestedService}**, el próximo horario disponible que tengo es el **${availableSlot.date} a las ${availableSlot.time}hs**. 🗓️\n\n¿Te queda bien este horario o prefieres buscar otro? (Responde "sí" para confirmar)`;
             }
             return "Estamos consultando nuestra agenda de lujo... Por favor, dime qué día te vendría bien y buscaremos el mejor horario para ti. 😊";
-
-        case 'contact_info_collection':
-            return `¡Excelente elección! Para finalizar la reserva de tu turno de **${state.interestedService}**, ¿podrías dejarme un medio de contacto? Ya sea un **Email** (con @) o un número de **Teléfono** para enviarte los detalles. ✨`;
 
         default:
             return "Entiendo. ¿Hay algo más en lo que pueda asistirte para que tu experiencia en NOVA sea perfecta? ✨";
@@ -155,9 +180,10 @@ function generateResponse(
 export default async function handler(req: Request) {
     if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+    let pool: Pool | null = null;
     try {
         const { messages } = await req.json() as { messages: Array<{ role: string; content: string }> };
-        const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+        pool = new Pool({ connectionString: process.env.DATABASE_URL });
 
         // Fetch services
         const { rows: services } = await pool.query<{ title: string; price: number }>(
@@ -183,7 +209,7 @@ export default async function handler(req: Request) {
 
                 for (let h = 10; h <= 18; h++) {
                     if (!takenHours.has(h)) {
-                        nextSlot = { date: dateStr, time: `${h}:00` };
+                        nextSlot = { date: dateStr, time: `${h.toString().padStart(2, '0')}:00` };
                         found = true;
                         break;
                     }
@@ -193,37 +219,72 @@ export default async function handler(req: Request) {
         }
 
         const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content.toLowerCase() || "";
-        const userConfirms = /si|sí|dale|ok|perfecto|bien|está bien|me gusta|confirmar/.test(lastUserMsg);
-
-        if (state.stage === 'availability_proposal' && userConfirms && nextSlot) {
-            state.pendingDate = nextSlot.date;
-            state.pendingTime = nextSlot.time;
-            state.stage = 'contact_info_collection';
-        }
+        const userConfirms = /si|sí|dale|ok|perfecto|bien|está bien|me gusta|confirmar/i.test(lastUserMsg);
 
         let isBookingConfirmed = false;
-        if (state.stage === 'done') {
+        // User is confirming the explicit date/time we proposed previously
+        if (state.stage === 'availability_proposal' && userConfirms && state.pendingDate && state.pendingTime) {
             const dateTimeStr = `${state.pendingDate}T${state.pendingTime}:00Z`;
-            const contactValue = state.clientEmail || state.clientPhone || 'N/A';
-            const contactKey = state.clientEmail ? 'email' : 'phone';
 
-            const { rows: newLead } = await pool.query<{ id: string }>(
-                "INSERT INTO leads (client_name, contact_info, status, intent_score) VALUES ($1, $2, 'qualified', 98) RETURNING id",
-                ['Cliente Nova', JSON.stringify({ [contactKey]: contactValue })]
+            const { rows: leads } = await pool.query<{ id: string }>(
+                `SELECT id FROM leads WHERE contact_info->>'phone' = $1 LIMIT 1`,
+                [state.clientPhone]
             );
+            const leadId = leads.length > 0 ? leads[0].id : null;
 
-            await pool.query(
-                "INSERT INTO appointments (lead_id, date_time, service_type, status) VALUES ($1, $2, $3, 'pending')",
-                [newLead[0].id, dateTimeStr, state.interestedService]
-            );
-            isBookingConfirmed = true;
+            if (leadId) {
+                // verify not already booked
+                const { rows: existingApps } = await pool.query(
+                    `SELECT id FROM appointments WHERE lead_id = $1 AND date_time = $2 AND status != 'cancelled'`,
+                    [leadId, dateTimeStr]
+                );
+
+                if (existingApps.length === 0) {
+                    await pool.query(
+                        "INSERT INTO appointments (lead_id, date_time, service_type, status) VALUES ($1, $2, $3, 'pending')",
+                        [leadId, dateTimeStr, state.interestedService]
+                    );
+                }
+                isBookingConfirmed = true;
+            }
         }
 
-        const response = generateResponse(state, services, nextSlot, isBookingConfirmed);
+        // Generate response
+        const responseText = generateResponse(state, services, nextSlot, isBookingConfirmed);
+
+        // --- EARLY UPSERT FOR LEADS (Guard Rails Passed) ---
+        if (state.interestedService && state.clientName && state.clientPhone) {
+            const contactValue = state.clientPhone;
+            // Append assistant's soon-to-be response to history so it's perfectly in sync in DB!
+            const newHistory = [...messages, { role: 'assistant', content: responseText }];
+            const chatHistoryJson = JSON.stringify(newHistory);
+
+            const { rows: existingLeads } = await pool.query<{ id: string }>(
+                `SELECT id FROM leads WHERE contact_info->>'phone' = $1`,
+                [contactValue]
+            );
+
+            const intentScore = isBookingConfirmed ? 100 : 80;
+
+            if (existingLeads.length > 0) {
+                await pool.query(
+                    `UPDATE leads SET client_name = $1, intent_score = $2, chat_history = $3::jsonb WHERE id = $4`,
+                    [state.clientName, intentScore, chatHistoryJson, existingLeads[0].id]
+                );
+            } else {
+                await pool.query(
+                    `INSERT INTO leads (client_name, contact_info, status, intent_score, chat_history) VALUES ($1, $2, 'qualified', $3, $4::jsonb)`,
+                    [state.clientName, JSON.stringify({ phone: contactValue }), intentScore, chatHistoryJson]
+                );
+            }
+        }
+        // ---------------------------------------------------
+
         await pool.end();
-        return sseStream(response);
+        return sseStream(responseText);
 
     } catch (e: unknown) {
+        if (pool) await pool.end();
         const error = e as Error;
         console.error("Chat error:", error.message);
         return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
