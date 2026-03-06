@@ -62,6 +62,9 @@ interface ConvState {
     stage: 'greeting' | 'service_selection' | 'name_collection' | 'phone_collection' | 'availability_proposal' | 'done';
     pendingDate: string | null;
     pendingTime: string | null;
+    isAskingAlternatives: boolean;
+    targetDate: string | null;
+    previouslySuggestedCount: number;
 }
 
 function extractState(messages: Array<{ role: string; content: string }>, services: Array<{ title: string; price: number }>): ConvState {
@@ -71,7 +74,10 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
         interestedService: null,
         stage: 'greeting',
         pendingDate: null,
-        pendingTime: null
+        pendingTime: null,
+        isAskingAlternatives: false,
+        targetDate: null,
+        previouslySuggestedCount: 0
     };
 
     if (messages.length === 0) return state;
@@ -137,16 +143,61 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
                     state.clientPhone = phoneMatch[0].trim();
                 }
             }
+
+            // 4. Extract Preferred Slot (if user mentions a time/date in availability stage)
+            if (state.interestedService && state.clientName && state.clientPhone) {
+                const timeMatch = text.match(/(\d{1,2}):(\d{2})/);
+                if (timeMatch) state.pendingTime = timeMatch[0].padStart(5, '0');
+            }
         }
     }
 
-    // Appointment Parsing
-    const allText = messages.map(m => m.content).join('\n');
-    const dateProposalMatch = allText.match(/(\d{4})-(\d{2})-(\d{2})/);
-    if (dateProposalMatch) state.pendingDate = dateProposalMatch[0];
+    // Appointment Parsing from History & Counting Suggestions
+    if (assistantMsgs.length > 0) {
+        // Find ALL previous date/time suggestions in history to know 'where we are'
+        assistantMsgs.forEach(m => {
+            const lowMsg = m.content.toLowerCase();
+            if (lowMsg.includes("horario disponible") || lowMsg.includes("serviría") || lowMsg.includes("te sirve quizás") || lowMsg.includes("parece el") || lowMsg.includes("otros horarios")) {
+                state.previouslySuggestedCount++;
+            }
+        });
 
-    const timeMatch = allText.match(/(\d{1,2}):(\d{2})/);
-    if (timeMatch) state.pendingTime = timeMatch[0];
+        const lastBotMsg = assistantMsgs[assistantMsgs.length - 1].content;
+        const dateMatch = lastBotMsg.match(/(\d{4})-(\d{2})-(\d{2})/);
+        const timeMatch = lastBotMsg.match(/(\d{1,2}):(\d{2})/);
+        if (dateMatch) state.pendingDate = dateMatch[0];
+        if (timeMatch && !state.pendingTime) state.pendingTime = timeMatch[0].padStart(5, '0');
+    }
+
+    // Intent detection for alternatives
+    const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content.toLowerCase() || "";
+
+    // Day detection
+    const daysArr = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+    for (const d of daysArr) {
+        if (lastUserMsg.includes(d)) {
+            const now = new Date();
+            const targetIdx = daysArr.indexOf(d);
+            const currentIdx = now.getDay() === 0 ? 6 : now.getDay() - 1; // map to 0-6 starting lunes
+            let diff = targetIdx - currentIdx;
+            if (diff <= 0) diff += 7;
+            const target = new Date(now);
+            target.setDate(now.getDate() + diff);
+            state.targetDate = target.toISOString().split('T')[0];
+            state.isAskingAlternatives = true;
+            break;
+        }
+    }
+    if (lastUserMsg.includes("mañana")) {
+        const target = new Date();
+        target.setDate(target.getDate() + 1);
+        state.targetDate = target.toISOString().split('T')[0];
+        state.isAskingAlternatives = true;
+    }
+
+    if (!state.isAskingAlternatives) {
+        state.isAskingAlternatives = /otro|horario|disponible|dia|puedo|cambiar|opciones|turno|momento|no|proximo/i.test(lastUserMsg);
+    }
 
     // Stage update
     if (messages.length <= 1) state.stage = 'greeting';
@@ -161,7 +212,7 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
 function generateResponse(
     state: ConvState,
     services: Array<{ title: string; price: number }>,
-    availableSlot: { date: string, time: string } | null,
+    availableSlots: Array<{ date: string, time: string }>,
     isBookingConfirmed: boolean
 ): string {
     if (isBookingConfirmed) {
@@ -184,10 +235,22 @@ function generateResponse(
             return `¡Un gusto conocerte, **${state.clientName}**! 😊\n\nPara poder enviarte los detalles de tu turno y registrar tu perfil, indícame tu número de WhatsApp.`;
 
         case 'availability_proposal':
-            if (availableSlot) {
-                return `¡Perfecto, ${state.clientName}! Ya registré tus datos provisoriamente. 🌟\n\nPara **${state.interestedService}**, el próximo horario disponible que tengo es el **${availableSlot.date} a las ${availableSlot.time}hs**. 🗓️\n\n¿Te queda bien este horario o prefieres buscar otro? (Responde "sí" para confirmar)`;
+            if (availableSlots.length > 0) {
+                const isNthSuggestion = state.previouslySuggestedCount > 0;
+                const slot = availableSlots[0];
+
+                if (state.isAskingAlternatives && isNthSuggestion) {
+                    return `¡Entendido! No hay problema. 😊 ¿Te sirve quizás el **${slot.date}** a las **${slot.time}hs**? ✨`;
+                }
+
+                if (isNthSuggestion) {
+                    // Fallback suggestion if somehow called without explicit 'isAskingAlternatives'
+                    return `¿Qué te parece el **${slot.date}** a las **${slot.time}hs**? ¿Te queda mejor este horario? 🗓️`;
+                }
+
+                return `¡Perfecto, ${state.clientName}! Ya registré tus datos provisoriamente. 🌟\n\nPara **${state.interestedService}**, el próximo horario disponible que tengo es el **${slot.date} a las ${slot.time}hs**. 🗓️\n\n¿Te queda bien este horario o prefieres buscar otro? (Responde "sí" para confirmar)`;
             }
-            return "Estamos consultando nuestra agenda de lujo... Por favor, dime qué día te vendría bien y buscaremos el mejor horario para ti. 😊";
+            return "Por ahora son los únicos espacios que tengo para esta semana, ¿te gustaría que te contactemos por WhatsApp si se libera algún lugar? 😊";
 
         default:
             return "Entiendo. ¿Hay algo más en lo que pueda asistirte para que tu experiencia en NOVA sea perfecta? ✨";
@@ -212,29 +275,35 @@ export default async function handler(req: Request) {
 
         const state = extractState(messages, services);
 
-        // Find availability if needed
-        let nextSlot: { date: string, time: string } | null = null;
+        // Find availability
+        const foundSlots: Array<{ date: string, time: string }> = [];
         if (state.stage === 'availability_proposal' && state.interestedService) {
-            const checkDate = new Date();
-            checkDate.setDate(checkDate.getDate() + 1); // Start tomorrow
+            const searchDate = state.targetDate ? new Date(state.targetDate) : new Date();
+            if (!state.targetDate) searchDate.setDate(searchDate.getDate() + 1);
 
-            let found = false;
-            for (let d = 0; d < 14 && !found; d++) {
-                const dateStr = checkDate.toISOString().split('T')[0];
+            // We skip slots already suggested
+            let totalFoundToSkip = 0;
+            const slotsToFind = 1;
+
+            for (let d = 0; d < 14 && foundSlots.length < slotsToFind; d++) {
+                const dateStr = searchDate.toISOString().split('T')[0];
                 const { rows: taken } = await pool.query<{ date_time: string }>(
-                    "SELECT date_time FROM appointments WHERE date_time::date = $1 AND status != 'cancelled'",
+                    "SELECT date_time FROM appointments WHERE date_time::date = $1 AND status != 'canceled'",
                     [dateStr]
                 );
                 const takenHours = new Set(taken.map(r => new Date(r.date_time).getUTCHours()));
 
                 for (let h = 10; h <= 18; h++) {
                     if (!takenHours.has(h)) {
-                        nextSlot = { date: dateStr, time: `${h.toString().padStart(2, '0')}:00` };
-                        found = true;
-                        break;
+                        // Check if we already suggested this one in history
+                        totalFoundToSkip++;
+                        if (totalFoundToSkip > state.previouslySuggestedCount) {
+                            foundSlots.push({ date: dateStr, time: `${h.toString().padStart(2, '0')}:00` });
+                            if (foundSlots.length >= slotsToFind) break;
+                        }
                     }
                 }
-                checkDate.setDate(checkDate.getDate() + 1);
+                searchDate.setDate(searchDate.getDate() + 1);
             }
         }
 
@@ -255,7 +324,7 @@ export default async function handler(req: Request) {
             if (leadId) {
                 // verify not already booked
                 const { rows: existingApps } = await pool.query(
-                    `SELECT id FROM appointments WHERE lead_id = $1 AND date_time = $2 AND status != 'cancelled'`,
+                    `SELECT id FROM appointments WHERE lead_id = $1 AND date_time = $2 AND status != 'canceled'`,
                     [leadId, dateTimeStr]
                 );
 
@@ -270,7 +339,7 @@ export default async function handler(req: Request) {
         }
 
         // Generate response
-        const responseText = generateResponse(state, services, nextSlot, isBookingConfirmed);
+        const responseText = generateResponse(state, services, foundSlots, isBookingConfirmed);
 
         // --- EARLY UPSERT FOR LEADS (Guard Rails Passed) ---
         if (state.interestedService && state.clientName && state.clientPhone) {
