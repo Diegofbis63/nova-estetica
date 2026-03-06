@@ -21,8 +21,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
   DialogTitle,
   DialogFooter,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   AlertDialog,
@@ -109,7 +113,7 @@ export default function Dashboard() {
     }
   }, [authUser]);
 
-  const { data: dashData, isLoading: dashLoading } = useQuery({
+  const { data: dashData, isLoading: dashLoading, error: dashError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
       const res = await fetch('/api/dashboard');
@@ -118,7 +122,7 @@ export default function Dashboard() {
     }
   });
 
-  const { data: servData, isLoading: servLoading } = useQuery({
+  const { data: servData, isLoading: servLoading, error: servError } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
       const res = await fetch('/api/services');
@@ -325,6 +329,30 @@ export default function Dashboard() {
   }, [appointments, dateFilter]);
 
   const loading = dashLoading || servLoading;
+
+  if (loading && !dashData) {
+    return (
+      <div className="min-h-screen bg-noir flex flex-col items-center justify-center gap-4">
+        <div className="w-12 h-12 border-4 border-gold/20 border-t-gold rounded-full animate-spin" />
+        <p className="text-cream/40 font-serif italic">Cargando panel de control...</p>
+      </div>
+    );
+  }
+
+  if (dashError || servError) {
+    return (
+      <div className="min-h-screen bg-noir flex flex-col items-center justify-center gap-6 p-4">
+        <AlertTriangle className="w-12 h-12 text-rose" />
+        <div className="text-center">
+          <h2 className="text-xl font-serif font-bold text-cream mb-2">Error al cargar datos</h2>
+          <p className="text-cream/40 max-w-md">No pudimos conectar con el servidor. Por favor, intenta refrescar la página.</p>
+        </div>
+        <button onClick={() => window.location.reload()} className="px-6 py-2 bg-gold text-noir rounded-lg font-bold">
+          Refrescar
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-noir text-cream">

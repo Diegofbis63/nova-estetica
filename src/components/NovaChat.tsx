@@ -19,11 +19,15 @@ export default function NovaChat() {
   }, [messages]);
 
   const inputRef = useRef<HTMLInputElement>(null);
+  const isFirstRender = useRef(true);
 
-  // 2. Chatbot Auto-focus
+  // 2. Chatbot Auto-focus: Only after it stops loading and not on first render
   useEffect(() => {
-    if (!isLoading) {
+    if (!isLoading && !isFirstRender.current) {
       inputRef.current?.focus();
+    }
+    if (isLoading) {
+      isFirstRender.current = false;
     }
   }, [isLoading]);
 
@@ -202,7 +206,6 @@ export default function NovaChat() {
             placeholder="Escribe tu mensaje..."
             onChange={(e) => setInput(e.target.value)}
             disabled={isLoading}
-            autoFocus
           />
           <button
             type="submit"

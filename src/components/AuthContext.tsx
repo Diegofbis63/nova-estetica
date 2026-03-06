@@ -15,8 +15,36 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-    const [user, setUser] = useState<User | null>(null);
+    // Initial sync check to avoid white screens
+    const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(() => {
+        const auth = localStorage.getItem("nova_auth");
+        if (auth) {
+            try {
+                const parsed = JSON.parse(auth);
+                if (Date.now() - parsed.timestamp < 7 * 24 * 60 * 60 * 1000) {
+                    return true;
+                }
+            } catch (e) {
+                // Ignore parsing errors on initial render
+            }
+        }
+        return null; // Let the effect double-check
+    });
+
+    const [user, setUser] = useState<User | null>(() => {
+        const auth = localStorage.getItem("nova_auth");
+        if (auth) {
+            try {
+                const parsed = JSON.parse(auth);
+                if (Date.now() - parsed.timestamp < 7 * 24 * 60 * 60 * 1000) {
+                    return parsed.user;
+                }
+            } catch (e) {
+                // Return null
+            }
+        }
+        return null;
+    });
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -56,8 +84,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
         };
 
-        checkAuth();
-    }, []);
+        if (isAuthenticated === null) {
+            checkAuth();
+        }
+    }, [isAuthenticated]);
+
+    console.log("Estado de Auth:", { user, loading: isAuthenticated === null });
 
     const login = (userData: User) => {
         localStorage.setItem("nova_auth", JSON.stringify({
