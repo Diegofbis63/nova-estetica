@@ -11,10 +11,14 @@ export default function Auth() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Clear any old session trace on load
+  const { isAuthenticated } = useAuth();
+
+  // Redirect to dashboard if already logged in (Persistent Session)
   useEffect(() => {
-    localStorage.clear();
-  }, []);
+    if (isAuthenticated) {
+      navigate("/dashboard");
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
