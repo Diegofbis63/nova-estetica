@@ -18,9 +18,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       SELECT * FROM leads ORDER BY created_at DESC LIMIT 50
     `);
 
-        // Fetch appointments
+        // Fetch appointments with lead info
         const apptsRes = await db.query(`
-      SELECT * FROM appointments ORDER BY date_time DESC LIMIT 50
+      SELECT a.*, l.client_name, l.phone 
+      FROM appointments a 
+      LEFT JOIN leads l ON a.lead_id = l.id 
+      ORDER BY a.date_time DESC 
+      LIMIT 50
     `);
 
         return res.status(200).json({

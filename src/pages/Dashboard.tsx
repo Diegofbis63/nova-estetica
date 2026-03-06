@@ -42,6 +42,9 @@ interface Lead {
 
 interface Appointment {
   id: string;
+  lead_id?: string;
+  client_name?: string;
+  phone?: string;
   service_type: string;
   date_time: string;
   status: string;
@@ -64,7 +67,7 @@ export default function Dashboard() {
   const queryClient = useQueryClient();
   const [userName, setUserName] = useState("");
   const [activeTab, setActiveTab] = useState<'leads' | 'services'>('leads');
-  const [dateFilter, setDateFilter] = useState<'all' | 'tomorrow' | 'nextWeek'>('all');
+  const [dateFilter, setDateFilter] = useState<'all' | 'hoy' | 'tomorrow'>('all');
 
   // Service form state
   const [isEditing, setIsEditing] = useState(false);
@@ -260,6 +263,10 @@ export default function Dashboard() {
   const appointments: Appointment[] = dashData?.appointments || [];
   const services: Service[] = servData?.services || [];
 
+  const unbookedLeads = useMemo(() => {
+    return leads.filter(l => !appointments.some(a => a.lead_id === l.id && a.status !== 'canceled'));
+  }, [leads, appointments]);
+
   const now = new Date();
   const leadsDeHoy = leads.filter(l => new Date(l.created_at) >= new Date(now.getTime() - 24 * 60 * 60 * 1000)).length;
   const pendientesCount = appointments.filter(a => a.status === "pending" || a.status === "scheduled").length;
@@ -275,16 +282,15 @@ export default function Dashboard() {
     const target = new Date();
     if (dateFilter === 'tomorrow') {
       target.setDate(target.getDate() + 1);
-      return appointments.filter(a => new Date(a.date_time).getDate() === target.getDate() && a.status !== 'canceled');
-    }
-    if (dateFilter === 'nextWeek') {
-      const nextWeekStart = new Date(target);
-      nextWeekStart.setDate(target.getDate() + 7 - target.getDay());
-      const nextWeekEnd = new Date(nextWeekStart);
-      nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
       return appointments.filter(a => {
         const ad = new Date(a.date_time);
-        return ad >= nextWeekStart && ad <= nextWeekEnd && a.status !== 'canceled';
+        return ad.getDate() === target.getDate() && ad.getMonth() === target.getMonth() && ad.getFullYear() === target.getFullYear() && a.status !== 'canceled';
+      });
+    }
+    if (dateFilter === 'hoy') {
+      return appointments.filter(a => {
+        const ad = new Date(a.date_time);
+        return ad.getDate() === target.getDate() && ad.getMonth() === target.getMonth() && ad.getFullYear() === target.getFullYear() && a.status !== 'canceled';
       });
     }
     return appointments;
@@ -373,12 +379,132 @@ export default function Dashboard() {
               ))}
             </div>
 
+            {/* APPOINTMENTS SECTION */}
             <div className="mb-12">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
                 <div className="flex items-center gap-3">
                   <div className="w-1.5 h-6 bg-gold rounded-full" />
                   <h3 className="text-lg font-serif font-bold text-cream tracking-tight">
-                    Flujo de Clientes Potenciales (Leads)
+                    Gestión de Citas Agendadas
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 bg-noir-light/60 p-1 rounded-full border border-cream/5">
+                  <button onClick={() => setDateFilter('all')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'all' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Todas</button>
+                  <button onClick={() => setDateFilter('hoy')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'hoy' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Hoy</button>
+                  <button onClick={() => setDateFilter('tomorrow')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'tomorrow' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Mañana</button>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 shadow-2xl overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-cream/5 hover:bg-transparent">
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Paciente</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Contacto</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Servicio</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Fecha y Hora</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Estado</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6 text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loading ? (
+                      <TableRow><TableCell colSpan={6} className="py-20 text-center text-cream/20 font-sans italic">Sincronizando agenda...</TableCell></TableRow>
+                    ) : filteredAppointments.length === 0 ? (
+                      <TableRow><TableCell colSpan={6} className="py-20 text-center text-cream/20 font-sans italic">No hay citas para el filtro seleccionado.</TableCell></TableRow>
+                    ) : filteredAppointments.map((a) => {
+                      const hasPhone = !!a.phone;
+                      return (
+                        <TableRow key={a.id} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
+                          <TableCell className="px-6 py-4">
+                            <span className="text-cream font-serif font-bold text-base">{a.client_name || "Paciente"}</span>
+                          </TableCell>
+                          <TableCell className="px-6 py-4">
+                            {hasPhone ? (
+                              <a
+                                href={`https://wa.me/${a.phone?.replace(/\\D/g, '')}`}
+                                target="_blank" rel="noreferrer"
+                                className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium w-fit border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 rounded-md transition-all"
+                              >
+                                <PhoneIcon className="w-3.5 h-3.5" />
+                                {a.phone}
+                              </a>
+                            ) : <span className="text-cream/40 text-xs">—</span>}
+                          </TableCell>
+                          <TableCell className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="w-2 h-2 rounded-full bg-gold shadow-[0_0_8px_rgba(238,197,143,0.5)]" />
+                              <span className="text-cream/80 text-sm font-sans">{a.service_type || "Tratamiento General"}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-6 py-4">
+                            <span className="text-cream/80 text-sm font-sans tracking-wide font-medium">
+                              {new Date(a.date_time).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }).replace(/^\w/, c => c.toUpperCase())}
+                              <span className="text-cream/30 mx-2">•</span>
+                              <span className="text-gold">{new Date(a.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs</span>
+                            </span>
+                          </TableCell>
+                          <TableCell className="px-6 py-4">
+                            <Badge variant="outline" className={`text-[9px] font-sans uppercase tracking-widest rounded-full ${a.status === 'confirmed' ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
+                              a.status === 'canceled' ? "text-rose border-rose/20 bg-rose/5" :
+                                a.status === 'pending' || a.status === 'scheduled' ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
+                                  "text-cream/20 border-cream/5 bg-cream/5"
+                              }`}>
+                              {a.status === 'confirmed' ? "Confirmada" : a.status === 'canceled' ? "Cancelada" : a.status === 'pending' || a.status === 'scheduled' ? "Pendiente" : a.status}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="px-6 py-4 text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <button className="p-2 rounded-lg bg-cream/5 text-cream/60 hover:text-gold hover:bg-gold/10 transition-all focus:outline-none">
+                                  <MoreHorizontal className="w-4 h-4" />
+                                </button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48 bg-noir-light/95 backdrop-blur-xl border border-gold/10 rounded-xl shadow-2xl">
+                                <DropdownMenuLabel className="font-serif text-cream/50 text-xs">Gestión de Cita</DropdownMenuLabel>
+                                <DropdownMenuSeparator className="bg-cream/5" />
+                                {a.status !== 'confirmed' && (
+                                  <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'confirmed' })} className="cursor-pointer text-emerald-400 focus:bg-emerald-400/10 focus:text-emerald-300 transition-colors font-sans text-xs flex items-center gap-2">
+                                    <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar Cita
+                                  </DropdownMenuItem>
+                                )}
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setSelectedAppointmentForEdit(a);
+                                    const d = new Date(a.date_time);
+                                    setFormDate(d.toISOString().split('T')[0]);
+                                    setFormTime(d.toTimeString().split(' ')[0].slice(0, 5));
+                                    setFormService(a.service_type || "");
+                                    setIsEditAppointmentModalOpen(true);
+                                  }}
+                                  className="cursor-pointer text-cream/70 focus:bg-gold/10 focus:text-gold transition-colors font-sans text-xs flex items-center gap-2"
+                                >
+                                  <Edit className="w-3.5 h-3.5" /> Editar (Reprogramar)
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator className="bg-cream/5" />
+                                {a.status !== 'canceled' && (
+                                  <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'canceled' })} className="cursor-pointer text-rose focus:bg-rose/10 focus:text-rose transition-colors font-sans text-xs flex items-center gap-2">
+                                    <XCircle className="w-3.5 h-3.5" /> Cancelar Cita
+                                  </DropdownMenuItem>
+                                )}
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+            {/* LEADS SECTION */}
+            <div>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-6 bg-cream/20 rounded-full" />
+                  <h3 className="text-lg font-serif font-bold text-cream tracking-tight">
+                    Pipeline de Clientes Potenciales
                   </h3>
                 </div>
               </div>
@@ -386,56 +512,42 @@ export default function Dashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-b border-cream/5 hover:bg-transparent">
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Cliente</TableHead>
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Contacto</TableHead>
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Estado (AI)</TableHead>
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Registrado</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Prospecto</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Interés</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Última Interacción</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6 text-right">Gestión</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-cream/20 font-sans italic">Analizando interacciones...</TableCell></TableRow>
-                    ) : leads.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-cream/20 font-sans italic">Nova está a la espera de nuevos clientes.</TableCell></TableRow>
-                    ) : leads.map((l, idx) => {
-                      const hasPhone = !!l.contact_info?.phone;
-                      const displayPhone = l.contact_info?.phone || "";
-                      const displayEmail = l.contact_info?.email || "";
-
+                      <TableRow><TableCell colSpan={4} className="py-20 text-center text-cream/20 font-sans italic">Analizando interacciones...</TableCell></TableRow>
+                    ) : unbookedLeads.length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="py-20 text-center text-cream/20 font-sans italic">No hay prospectos esperando turno.</TableCell></TableRow>
+                    ) : unbookedLeads.map((l, idx) => {
                       return (
                         <TableRow key={l.id || idx} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
                           <TableCell className="px-6 py-4">
-                            <div className="flex flex-col">
-                              <span className="text-cream font-serif font-bold text-base">{l.client_name}</span>
-                              <span className="text-[10px] text-gold/50 font-sans uppercase tracking-wider">Interés: {l.intent_score || 0}%</span>
-                            </div>
+                            <span className="text-cream font-serif font-bold text-base">{l.client_name}</span>
                           </TableCell>
                           <TableCell className="px-6 py-4">
-                            <div className="flex flex-col font-sans gap-1.5">
-                              {hasPhone ? (
-                                <a
-                                  href={`https://wa.me/${displayPhone.replace(/\\D/g, '')}`}
-                                  target="_blank" rel="noreferrer"
-                                  className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium w-fit border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 rounded-md transition-all"
-                                >
-                                  <PhoneIcon className="w-3.5 h-3.5" />
-                                  {displayPhone}
-                                </a>
-                              ) : <span className="text-cream/40 text-xs">—</span>}
-                              {displayEmail && <span className="text-cream/30 text-[10px] truncate max-w-[150px]" title={displayEmail}>{displayEmail}</span>}
+                            <div className="flex items-center gap-2">
+                              <span className="text-emerald-400 font-bold">{l.intent_score || 85}%</span>
+                              <Badge variant="outline" className={`text-[9px] font-sans uppercase tracking-widest rounded-full ${l.status === "qualified" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
+                                l.status === "contacted" ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
+                                  "text-cream/40 border-cream/10 bg-cream/5"
+                                }`}>
+                                {l.status === "qualified" ? "Alta" : l.status === "contacted" ? "Media" : "Evaluando"}
+                              </Badge>
                             </div>
                           </TableCell>
-                          <TableCell className="px-6 py-4">
-                            <Badge variant="outline" className={`text-[9px] font-sans uppercase tracking-widest rounded-full ${l.status === "qualified" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
-                              l.status === "contacted" ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
-                                "text-cream/40 border-cream/10 bg-cream/5"
-                              }`}>
-                              {l.status === "qualified" ? "Calificado" : l.status === "contacted" ? "En Gestión" : "Nuevo"}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="px-6 py-4 text-cream/30 text-xs font-sans">
-                            {l.created_at ? new Date(l.created_at).toLocaleDateString("es-AR") : "—"}
+                          <TableCell className="px-6 py-4 text-cream/80 text-sm font-sans font-medium">
+                            {l.created_at ? (
+                              <>
+                                {new Date(l.created_at).toLocaleDateString("es-AR", { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                                <span className="text-cream/30 mx-2">•</span>
+                                <span className="text-gold">{new Date(l.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs</span>
+                              </>
+                            ) : "—"}
                           </TableCell>
                           <TableCell className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -444,124 +556,24 @@ export default function Dashboard() {
                                   setSelectedLeadForChat(l);
                                   setIsChatModalOpen(true);
                                 }}
-                                className="p-2 bg-cream/5 border border-cream/10 hover:bg-gold/10 hover:text-gold hover:border-gold/20 text-cream/40 rounded-lg transition-all"
-                                title="Ver Conversación (AI)"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-cream/5 border border-cream/10 hover:bg-gold/10 hover:text-gold hover:border-gold/20 text-cream/40 rounded-lg transition-all text-xs font-medium"
                               >
-                                <MessageSquare className="w-4 h-4" />
+                                <MessageSquare className="w-3.5 h-3.5" /> Log
                               </button>
                               <button
                                 onClick={() => {
                                   setSelectedLeadForAppt(l);
                                   setIsNewAppointmentModalOpen(true);
                                 }}
-                                className="p-2 bg-cream/5 border border-cream/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 text-cream/40 rounded-lg transition-all"
-                                title="Convertir a Cita Manual"
+                                className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 text-emerald-400 rounded-lg transition-all text-xs font-medium"
                               >
-                                <Plus className="w-4 h-4" />
+                                <CalendarCheck className="w-3.5 h-3.5" /> Agendar
                               </button>
                             </div>
                           </TableCell>
                         </TableRow>
                       );
                     })}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-
-            <div>
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-1.5 h-6 bg-gold rounded-full" />
-                  <h3 className="text-lg font-serif font-bold text-cream tracking-tight">
-                    Citas Agendadas
-                  </h3>
-                </div>
-                <div className="flex items-center gap-2 bg-noir-light/60 p-1 rounded-full border border-cream/5">
-                  <button onClick={() => setDateFilter('all')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'all' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Todas</button>
-                  <button onClick={() => setDateFilter('tomorrow')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'tomorrow' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Mañana</button>
-                  <button onClick={() => setDateFilter('nextWeek')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'nextWeek' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Semana Sgte</button>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 shadow-2xl overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="border-b border-cream/5 hover:bg-transparent">
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Servicio</TableHead>
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Fecha y Horario</TableHead>
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Estado</TableHead>
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6 text-right">Acciones</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow><TableCell colSpan={4} className="py-20 text-center text-cream/20 font-sans italic">Sincronizando agenda...</TableCell></TableRow>
-                    ) : filteredAppointments.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="py-20 text-center text-cream/20 font-sans italic">No hay citas para el filtro seleccionado.</TableCell></TableRow>
-                    ) : filteredAppointments.map((a) => (
-                      <TableRow key={a.id} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
-                        <TableCell className="px-6 py-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-gold shadow-[0_0_8px_rgba(238,197,143,0.5)]" />
-                            <span className="text-cream font-serif font-bold text-base">{a.service_type || "Tratamiento General"}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell className="px-6 py-4">
-                          <span className="text-cream/80 text-sm font-sans tracking-wide font-medium">
-                            {new Date(a.date_time).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }).replace(/^\w/, c => c.toUpperCase())}
-                            <span className="text-cream/30 mx-2">•</span>
-                            <span className="text-gold">{new Date(a.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}hs</span>
-                          </span>
-                        </TableCell>
-                        <TableCell className="px-6 py-4">
-                          <Badge variant="outline" className={`text-[9px] font-sans uppercase tracking-widest rounded-full ${a.status === 'confirmed' ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
-                            a.status === 'canceled' ? "text-rose border-rose/20 bg-rose/5" :
-                              a.status === 'pending' || a.status === 'scheduled' ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
-                                "text-cream/20 border-cream/5 bg-cream/5"
-                            }`}>
-                            {a.status === 'confirmed' ? "Confirmada" : a.status === 'canceled' ? "Cancelada" : a.status === 'pending' || a.status === 'scheduled' ? "Pendiente" : a.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="px-6 py-4 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <button className="p-2 rounded-lg bg-cream/5 text-cream/60 hover:text-gold hover:bg-gold/10 transition-all focus:outline-none">
-                                <MoreHorizontal className="w-4 h-4" />
-                              </button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-48 bg-noir-light/95 backdrop-blur-xl border border-gold/10 rounded-xl shadow-2xl">
-                              <DropdownMenuLabel className="font-serif text-cream/50 text-xs">Gestión de Cita</DropdownMenuLabel>
-                              <DropdownMenuSeparator className="bg-cream/5" />
-                              {a.status !== 'confirmed' && (
-                                <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'confirmed' })} className="cursor-pointer text-emerald-400 focus:bg-emerald-400/10 focus:text-emerald-300 transition-colors font-sans text-xs flex items-center gap-2">
-                                  <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar (Contactado)
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuItem
-                                onClick={() => {
-                                  setSelectedAppointmentForEdit(a);
-                                  const d = new Date(a.date_time);
-                                  setFormDate(d.toISOString().split('T')[0]);
-                                  setFormTime(d.toTimeString().split(' ')[0].slice(0, 5));
-                                  setFormService(a.service_type || "");
-                                  setIsEditAppointmentModalOpen(true);
-                                }}
-                                className="cursor-pointer text-cream/70 focus:bg-gold/10 focus:text-gold transition-colors font-sans text-xs flex items-center gap-2"
-                              >
-                                <Edit className="w-3.5 h-3.5" /> Editar (Reprogramar)
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator className="bg-cream/5" />
-                              {a.status !== 'canceled' && (
-                                <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'canceled' })} className="cursor-pointer text-rose focus:bg-rose/10 focus:text-rose transition-colors font-sans text-xs flex items-center gap-2">
-                                  <XCircle className="w-3.5 h-3.5" /> Cancelar Cita
-                                </DropdownMenuItem>
-                              )}
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </TableCell>
-                      </TableRow>
-                    ))}
                   </TableBody>
                 </Table>
               </div>
