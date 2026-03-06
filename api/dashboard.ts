@@ -20,7 +20,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         // Fetch appointments with lead info
         const apptsRes = await db.query(`
-      SELECT a.*, l.client_name, l.phone 
+      SELECT a.*, l.client_name, l.contact_info->>'phone' as phone, l.contact_info->>'email' as email 
       FROM appointments a 
       LEFT JOIN leads l ON a.lead_id = l.id 
       ORDER BY a.date_time DESC 
