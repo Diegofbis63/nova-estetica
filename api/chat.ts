@@ -81,7 +81,7 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
     const assistantMsgs = messages.filter(m => m.role === 'assistant');
     if (assistantMsgs.length > 0) {
         const lastBotMsg = assistantMsgs[assistantMsgs.length - 1].content.toLowerCase();
-        if (lastBotMsg.includes("tu nombre")) lastAssistantAsked = 'name';
+        if (lastBotMsg.includes("tu nombre") || lastBotMsg.includes("gusto de hablar")) lastAssistantAsked = 'name';
         else if (lastBotMsg.includes("whatsapp") || lastBotMsg.includes("teléfono")) lastAssistantAsked = 'phone';
         else if (lastBotMsg.includes("servicio") || lastBotMsg.includes("tratamiento")) lastAssistantAsked = 'service';
     }
@@ -113,10 +113,16 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
                 if (lastAssistantAsked === 'name' || hasNameKeyword) {
                     if (!/\d/.test(text)) {
                         const cleaned = text.replace(nameKeywords, '').replace(/^(hola\s+)?/i, '').trim();
-                        const isCommonWord = /^(si|sí|no|gracias|ok|dale|perfecto|hola)$/i.test(cleaned);
-                        const isSentence = cleaned.split(' ').length > 4 || cleaned.toLowerCase().includes('turno') || cleaned.toLowerCase().includes('servicio');
 
-                        if (cleaned.length >= 3 && !isCommonWord && !isSentence && cleaned.toLowerCase() !== state.interestedService.toLowerCase()) {
+                        // Strict blacklist from user request
+                        const blacklist = [/hola/i, /quiero/i, /turno/i, /estetica/i, /servicio/i, /tratamiento/i];
+                        const isBlacklisted = blacklist.some(regex => regex.test(cleaned));
+
+                        const isCommonWord = /^(si|sí|no|gracias|ok|dale|perfecto|hola)$/i.test(cleaned);
+                        const isSentence = cleaned.split(' ').length > 4;
+                        const looksLikeService = services.some(s => normalizeText(cleaned).includes(normalizeText(s.title)));
+
+                        if (cleaned.length >= 3 && !isBlacklisted && !isCommonWord && !isSentence && !looksLikeService) {
                             state.clientName = cleaned.replace(/\b\w/g, l => l.toUpperCase());
                             if (!hasNameKeyword) continue; // consume message
                         }
@@ -172,7 +178,7 @@ function generateResponse(
         }
 
         case 'name_collection':
-            return `¡Excelente elección el **${state.interestedService}**! ✨ Para poder brindarte una atención personalizada, ¿podrías decirme tu nombre y apellido? (Procura ingresar tu nombre sin números).`;
+            return `¡Excelente elección! El **${state.interestedService}** es uno de nuestros tratamientos estrella. ✨ Antes de ver la agenda, ¿con quién tengo el gusto de hablar?`;
 
         case 'phone_collection':
             return `¡Un gusto conocerte, **${state.clientName}**! 😊\n\nPara poder enviarte los detalles de tu turno y registrar tu perfil, indícame tu número de WhatsApp.`;
@@ -195,7 +201,9 @@ export default async function handler(req: Request) {
     let pool: Pool | null = null;
     try {
         const { messages } = await req.json() as { messages: Array<{ role: string; content: string }> };
-        pool = new Pool({ connectionString: process.env.DATABASE_URL });
+        const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+        if (!connectionString) throw new Error("Missing connection string");
+        pool = new Pool({ connectionString });
 
         // Fetch services
         const { rows: services } = await pool.query<{ title: string; price: number }>(
