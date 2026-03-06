@@ -30,6 +30,31 @@ function sseStream(text: string): Response {
 }
 
 // ─── Sophisticated State Extraction ──────────────────────────────────────────
+const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "");
+
+function findBestServiceMatch(userInput: string, services: Array<{ title: string; price: number }>): string | null {
+    const normalizedInput = normalizeText(userInput);
+    let bestMatch: string | null = null;
+    let highestScore = 0;
+
+    services.forEach(service => {
+        const serviceName = normalizeText(service.title);
+        const words = serviceName.split(/\s+/).filter(w => w.length > 2); // filter short words
+        let score = 0;
+
+        words.forEach(word => {
+            if (normalizedInput.includes(word)) score += 1;
+        });
+
+        if (score > highestScore) {
+            highestScore = score;
+            bestMatch = service.title;
+        }
+    });
+
+    return highestScore > 0 ? bestMatch : null;
+}
+
 interface ConvState {
     clientEmail: string | null;
     clientPhone: string | null;
@@ -51,35 +76,32 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
 
     if (messages.length === 0) return state;
 
-    const allText = messages.map(m => m.content).join('\n').toLowerCase();
-    const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content.toLowerCase() || "";
+    const allText = messages.map(m => m.content).join('\n');
+    const userMessages = messages.filter(m => m.role === 'user');
+    const allUserText = userMessages.map(m => m.content).join('\n');
 
-    // 1. Service Detection
-    for (const svc of services) {
-        if (lastUserMsg.includes(svc.title.toLowerCase())) {
-            state.interestedService = svc.title;
-            break;
-        }
-    }
-    if (!state.interestedService) {
-        for (const svc of services) {
-            if (allText.includes(svc.title.toLowerCase())) {
-                state.interestedService = svc.title;
-                break;
-            }
-        }
+    // Get last and previous user messages
+    const lastUserMsg = userMessages.length > 0 ? userMessages[userMessages.length - 1].content : "";
+    const previousUserMsg = userMessages.length > 1 ? userMessages[userMessages.length - 2].content : "";
+
+    // 1. Service Detection (Only evaluate user input to avoid "echo hallucination")
+    state.interestedService = findBestServiceMatch(lastUserMsg, services);
+
+    // If not found in the last message, check previous msg (if we are retrying)
+    if (!state.interestedService && previousUserMsg) {
+        state.interestedService = findBestServiceMatch(previousUserMsg, services);
     }
 
-    // 2. Contact Detection
-    const emailMatch = allText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
+    // 2. Contact Detection (Only look at what the user gave us)
+    const emailMatch = allUserText.match(/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/i);
     if (emailMatch) state.clientEmail = emailMatch[0].toLowerCase();
 
-    const phoneMatch = allText.match(/(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
+    const phoneMatch = allUserText.match(/(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
     if (phoneMatch && phoneMatch[0].replace(/\D/g, '').length >= 8) {
         state.clientPhone = phoneMatch[0].trim();
     }
 
-    // 3. Appointment Extraction (Detecting the bot's proposal and user's "ok")
+    // 3. Appointment Extraction (Bot proposed this, so it could be in allText)
     const dateProposalMatch = allText.match(/(\d{4})-(\d{2})-(\d{2})/); // ISO Date in text
     if (dateProposalMatch) state.pendingDate = dateProposalMatch[0];
 

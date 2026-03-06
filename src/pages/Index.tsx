@@ -27,10 +27,10 @@ const Index = () => {
               <span className="text-noir font-serif font-bold text-lg">N</span>
             </div>
             <div>
-              <span className="text-base font-serif font-bold tracking-[0.15em] text-cream">
+              <span className="text-xl font-serif font-bold tracking-[0.15em] text-cream">
                 NOVA Estética
               </span>
-              <p className="text-[9px] font-sans text-cream/40 tracking-[0.2em] uppercase">Centro de Belleza Premium</p>
+              <p className="text-[11px] font-sans text-cream/60 tracking-[0.2em] uppercase">Centro de Belleza Premium</p>
             </div>
           </div>
           <nav className="flex items-center gap-6">
@@ -57,21 +57,21 @@ const Index = () => {
 
         {/* Info bar */}
         <ScrollReveal className="px-4 pb-16">
-          <div className="max-w-4xl mx-auto flex flex-wrap justify-center gap-8 text-cream/40 text-xs font-sans">
-            <div className="flex items-center gap-2">
-              <MapPin className="w-3.5 h-3.5 text-gold/50" />
+          <div className="max-w-6xl mx-auto flex flex-wrap justify-center gap-12 text-cream/80 text-sm md:text-base font-sans font-medium">
+            <div className="flex items-center gap-3">
+              <MapPin className="w-5 h-5 text-gold" />
               Av. Libertador 1234, Buenos Aires
             </div>
-            <div className="flex items-center gap-2">
-              <Clock className="w-3.5 h-3.5 text-gold/50" />
+            <div className="flex items-center gap-3">
+              <Clock className="w-5 h-5 text-gold" />
               Lun–Sáb 9:00–20:00
             </div>
-            <div className="flex items-center gap-2">
-              <Phone className="w-3.5 h-3.5 text-gold/50" />
+            <div className="flex items-center gap-3">
+              <Phone className="w-5 h-5 text-gold" />
               +54 11 5555-1234
             </div>
-            <div className="flex items-center gap-2">
-              <Instagram className="w-3.5 h-3.5 text-gold/50" />
+            <div className="flex items-center gap-3">
+              <Instagram className="w-5 h-5 text-gold" />
               @nova.estetica
             </div>
           </div>
@@ -100,27 +100,27 @@ const Index = () => {
 
         {/* Footer */}
         <footer className="border-t border-cream/10 mt-8">
-          <div className="max-w-5xl mx-auto px-6 py-12 grid grid-cols-1 md:grid-cols-3 gap-8 text-center md:text-left">
+          <div className="max-w-6xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left">
             <div>
-              <h4 className="font-serif text-sm font-bold text-cream mb-3">NOVA Estética</h4>
-              <p className="text-xs text-cream/30 leading-relaxed font-sans">
+              <h4 className="font-serif text-lg font-bold text-cream mb-4">NOVA Estética</h4>
+              <p className="text-sm text-cream/50 leading-relaxed font-sans">
                 Centro de belleza premium con los mejores profesionales y tecnología de última generación en Buenos Aires.
               </p>
             </div>
             <div>
-              <h4 className="font-serif text-sm font-bold text-cream mb-3">Contacto</h4>
-              <div className="space-y-2 text-xs text-cream/30 font-sans">
-                <p className="flex items-center justify-center md:justify-start gap-2"><MapPin className="w-3 h-3 text-gold/40" /> Av. Libertador 1234, Buenos Aires</p>
-                <p className="flex items-center justify-center md:justify-start gap-2"><Phone className="w-3 h-3 text-gold/40" /> +54 11 5555-1234</p>
-                <p className="flex items-center justify-center md:justify-start gap-2"><Mail className="w-3 h-3 text-gold/40" /> hola@novaestetica.com</p>
+              <h4 className="font-serif text-lg font-bold text-cream mb-4">Contacto</h4>
+              <div className="space-y-3 text-sm text-cream/50 font-sans">
+                <p className="flex items-center justify-center md:justify-start gap-3"><MapPin className="w-4 h-4 text-gold/60" /> Av. Libertador 1234, Buenos Aires</p>
+                <p className="flex items-center justify-center md:justify-start gap-3"><Phone className="w-4 h-4 text-gold/60" /> +54 11 5555-1234</p>
+                <p className="flex items-center justify-center md:justify-start gap-3"><Mail className="w-4 h-4 text-gold/60" /> hola@novaestetica.com</p>
               </div>
             </div>
             <div>
-              <h4 className="font-serif text-sm font-bold text-cream mb-3">Horarios</h4>
-              <div className="space-y-1 text-xs text-cream/30 font-sans">
-                <p>Lunes a Viernes: 9:00 – 20:00</p>
-                <p>Sábados: 9:00 – 18:00</p>
-                <p>Domingos: Cerrado</p>
+              <h4 className="font-serif text-lg font-bold text-cream mb-4">Horarios</h4>
+              <div className="space-y-2 text-sm text-cream/50 font-sans">
+                <p className="flex items-center justify-center md:justify-start gap-2"><Clock className="w-4 h-4 text-gold/60" /> Lunes a Viernes: 9:00 – 20:00</p>
+                <p className="flex items-center justify-center md:justify-start gap-2"><Clock className="w-4 h-4 text-gold/60" /> Sábados: 9:00 – 18:00</p>
+                <p className="flex items-center justify-center md:justify-start gap-2 text-rose/60"><Clock className="w-4 h-4 opacity-50" /> Domingos: Cerrado</p>
               </div>
             </div>
           </div>

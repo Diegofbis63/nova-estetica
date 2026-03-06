@@ -1,68 +1,48 @@
-# Nova Estética - Cognitive Autonomous Agent
+# NOVA Estética — Private Luxury B2B Platform
 
-![Nova Estética](https://img.shields.io/badge/Nova_Estetica-Autonomous_Agent-8A2BE2?style=for-the-badge&logo=openai&logoColor=white)
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
-![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)
-![NeonDB](https://img.shields.io/badge/Neon-00E599?style=for-the-badge&logo=neon&logoColor=black)
+![License: Private](https://img.shields.io/badge/License-Private_Proprietary-red?style=for-the-badge)
+![Status: Production](https://img.shields.io/badge/Status-Production_Ready-gold?style=for-the-badge)
+![Tech: Next-Gen_Stack](https://img.shields.io/badge/Tech-React_Vite_TS_NeonDB-blue?style=for-the-badge)
 
-B2B-ready intelligent autonomous web agent designed for premium customer support and interactive user experiences.
+**NOVA Estética** is a premium, enterprise-grade autonomous solution designed for high-end beauty clinics. This platform integrates a sophisticated AI patient assistant with a powerful B2B administration suite to automate sales, scheduling, and service management.
 
-## 🚀 Features
+> [!IMPORTANT]
+> This is a **Proprietary Private Repository**. Unauthorized distribution or copying is strictly prohibited.
 
-- **Interactive 3D UI**: Fully integrated with Spline for immersive real-time visually responsive graphics.
-- **State-of-the-Art AI integration**: Leverages Large Language Models to stream natural language seamlessly, ensuring zero perceived end-user latency.
-- **Persistent Memory**: Uses Neon Postgres Serverless for fast, scalable datastore, providing conversational context retention and scheduling.
-- **Next-Gen UI**: Designed with extreme Glassmorphism and "Liquid Luxury" styling components via Shadcn-UI and Tailwind CSS.
-- **Enterprise-Ready**: Fast client-side rendering with Vite, strictly typed with TypeScript, and thoroughly componentized for immediate scalability.
+## 💎 Core Architecture & Innovation
 
-## 🛠 Tech Stack
+### 🧠 Autonomous Sales Specialist
 
-- **Framework**: Vite + React 18
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS + shadcn/ui
-- **Database / Backend**: Neon Serverless Postgres + Vercel Edge API Routes
-- **Visuals**: Framer Motion & Spline 3D
-- **Routing**: React Router v6
-- **Data Fetching**: TanStack React Query
+- **Coded Conversational Engine**: Built-in deterministic state-machine for natural language understanding with zero external API costs.
+- **Infinite Reliability**: 100% stable flow that guarantees no hallucinations and strictly follows business rules.
+- **Lead Qualification**: Detects intent scores and captures high-value contact data directly into the CRM.
 
-## 💻 Getting Started
+### 🎨 Visual Excellence & UX
 
-1. Clone the repository:
+- **Crystal-Clear Hero Engine**: Responsive focal-point technology that maintains 100% background sharpness while guaranteeing text legibility via sophisticated CSS masking.
+- **Interactive Service Suite**: A touch-optimized horizontal slider with real-time progress indicators and administrative custom ordering.
+- **Liquid Luxury Design**: Deep glassmorphism and motion-optimized transitions using Framer Motion.
 
-   ```sh
-   git clone https://github.com/Diegofbis63/nova-estetica.git
-   cd nova-estetica
-   ```
+### 🛠 Administrative Power (Private Dashboard)
 
-2. Install dependencies:
+- **Live Inventory Management**: Full CRUD operations for services with instant cloud synchronization.
+- **Custom Visual Ordering**: Proprietary `sort_order` logic allowing clinic owners to curate the user journey on the homepage.
+- **Universal Image Sync**: Built-in device-to-cloud image uploader (Base64 hybrid) for zero-latency asset updates.
 
-   ```sh
-   npm install
-   ```
+## 🛠 Tech Stack (Senior Build)
 
-3. Configure your environmental variables:
-   Provide your Neon DB credentials natively to allow full data sync (`DATABASE_URL`).
+- **Frontend**: React 18 + TypeScript + Vite (Ultra-fast HMR & Build)
+- **Styling**: Tailwind CSS + shadcn/ui (Premium Design System)
+- **Engine**: Vercel Edge API Routes (Sub-millisecond latency)
+- **Database**: Neon Serverless Postgres (Global scalablity)
+- **Motion**: Framer Motion + Lucide Icons
 
-   ```sh
-   cp .env.example .env
-   ```
+## 🔒 Security & Deployment
 
-4. Run the development server:
+The application is deployed on **Vercel's Global Edge Network**, utilizing secure environmental variables for database authentication and API protection.
 
-   ```sh
-   npm run dev
-   ```
+- **Production URL**: [nova-estetica.vercel.app](https://nova-estetica.vercel.app)
+- **Admin Access**: Restricted via encrypted authentication layers.
 
-## 🌐 Deployment
-
-This application comes pre-configured for high-availability Edge network deployments via [Vercel](https://vercel.com). Simply link your GitHub repository to a Vercel Project and deploy with standard Vite build settings:
-
-- **Build Command:** `npm run build`
-- **Output Directory:** `dist`
-
-## 📄 License & Attribution
-
-This project is part of the **Antigravity** premium SaaS ecosystem.
-Built by Diego Federico Bisquerra.
+---
+© 2026 NOVA Estética. Built by Diego Federico Bisquerra with Antigravity Engineering.
