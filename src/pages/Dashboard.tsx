@@ -87,6 +87,8 @@ export default function Dashboard() {
   const [formDate, setFormDate] = useState("");
   const [formTime, setFormTime] = useState("");
   const [formService, setFormService] = useState("");
+  const [formClientName, setFormClientName] = useState("");
+  const [formPhone, setFormPhone] = useState("");
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -399,7 +401,7 @@ export default function Dashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow className="border-b border-cream/5 hover:bg-transparent">
-                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Paciente</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Cliente</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Contacto</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Servicio</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Fecha y Hora</TableHead>
@@ -417,7 +419,7 @@ export default function Dashboard() {
                       return (
                         <TableRow key={a.id} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
                           <TableCell className="px-6 py-4">
-                            <span className="text-cream font-serif font-bold text-base">{a.client_name || "Paciente"}</span>
+                            <span className="text-cream font-serif font-bold text-base">{a.client_name || "Cliente"}</span>
                           </TableCell>
                           <TableCell className="px-6 py-4">
                             {hasPhone ? (
@@ -475,6 +477,8 @@ export default function Dashboard() {
                                     setFormDate(d.toISOString().split('T')[0]);
                                     setFormTime(d.toTimeString().split(' ')[0].slice(0, 5));
                                     setFormService(a.service_type || "");
+                                    setFormClientName(a.client_name || "");
+                                    setFormPhone(a.phone || "");
                                     setIsEditAppointmentModalOpen(true);
                                   }}
                                   className="cursor-pointer text-cream/70 focus:bg-gold/10 focus:text-gold transition-colors font-sans text-xs flex items-center gap-2"
@@ -846,7 +850,7 @@ export default function Dashboard() {
               Reprogramar Cita
             </DialogTitle>
             <DialogDescription className="text-cream/50">
-              Cambia la fecha o el horario de esta cita.
+              Cambia los datos, la fecha o el horario de esta cita.
             </DialogDescription>
           </DialogHeader>
           <form
@@ -860,7 +864,9 @@ export default function Dashboard() {
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({
                     date_time: `${formDate}T${formTime}:00Z`,
-                    service_type: formService
+                    service_type: formService,
+                    client_name: formClientName,
+                    phone: formPhone
                   })
                 }).then(() => {
                   queryClient.invalidateQueries({ queryKey: ['dashboard'] });
@@ -870,6 +876,28 @@ export default function Dashboard() {
             }}
             className="flex flex-col gap-4 mt-4"
           >
+            <div className="flex gap-4">
+              <div className="flex-1">
+                <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Nombre del Cliente</label>
+                <input
+                  type="text"
+                  value={formClientName}
+                  onChange={e => setFormClientName(e.target.value)}
+                  className="w-full bg-noir-light border border-cream/10 rounded-lg px-3 py-2 outline-none focus:border-gold/50"
+                  placeholder="Ej. María López"
+                />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Teléfono (WhatsApp)</label>
+                <input
+                  type="text"
+                  value={formPhone}
+                  onChange={e => setFormPhone(e.target.value)}
+                  className="w-full bg-noir-light border border-cream/10 rounded-lg px-3 py-2 outline-none focus:border-gold/50"
+                  placeholder="Ej. 1155667788"
+                />
+              </div>
+            </div>
             <div>
               <label className="text-xs text-cream/40 uppercase tracking-widest mb-1 block">Servicio Reservado</label>
               <select

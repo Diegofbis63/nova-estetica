@@ -11,7 +11,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
         if (req.method === 'PATCH') {
             const { id } = req.query;
-            const { status, date_time, service_type } = req.body;
+            const { status, date_time, service_type, client_name, phone } = req.body;
 
             if (!id) {
                 return res.status(400).json({ error: 'Missing appointment ID' });
@@ -34,25 +34,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
                 values.push(service_type);
             }
 
-            if (updates.length === 0) {
-                return res.status(400).json({ error: 'No fields to update' });
+            let appointmentResult = null;
+            if (updates.length > 0) {
+                values.push(id);
+                const query = `
+                    UPDATE appointments 
+                    SET ${updates.join(', ')} 
+                    WHERE id = $${index} 
+                    RETURNING *
+                `;
+
+                appointmentResult = await db.query(query, values);
+            } else {
+                appointmentResult = await db.query("SELECT * FROM appointments WHERE id = $1", [id]);
             }
 
-            values.push(id);
-            const query = `
-                UPDATE appointments 
-                SET ${updates.join(', ')} 
-                WHERE id = $${index} 
-                RETURNING *
-            `;
-
-            const result = await db.query(query, values);
-
-            if (result.rows.length === 0) {
+            if (!appointmentResult || appointmentResult.rows.length === 0) {
                 return res.status(404).json({ error: 'Appointment not found' });
             }
 
-            return res.status(200).json({ appointment: result.rows[0] });
+            const appointment = appointmentResult.rows[0];
+
+            if (client_name !== undefined || phone !== undefined) {
+                const leadUpdates: string[] = [];
+                const leadValues: any[] = [];
+                let leadIndex = 1;
+
+                if (client_name !== undefined) {
+                    leadUpdates.push(`client_name = $${leadIndex++}`);
+                    leadValues.push(client_name);
+                }
+
+                if (phone !== undefined) {
+                    leadUpdates.push(`contact_info = jsonb_set(COALESCE(contact_info::jsonb, '{}'::jsonb), '{phone}', $${leadIndex++}::jsonb)`);
+                    leadValues.push(`"${phone}"`);
+                }
+
+                if (leadUpdates.length > 0) {
+                    leadValues.push(appointment.lead_id);
+                    const leadQuery = `
+                        UPDATE leads
+                        SET ${leadUpdates.join(', ')}
+                        WHERE id = $${leadIndex}
+                    `;
+                    await db.query(leadQuery, leadValues);
+                }
+            }
+
+            return res.status(200).json({ appointment });
 
         } else if (req.method === 'POST') {
             const { lead_id, date_time, service_type } = req.body;
