@@ -66,6 +66,8 @@ interface ConvState {
     targetDate: string | null;
     previouslySuggestedCount: number;
     isAmbiguous: boolean;
+    rejectedDates: string[];
+    requestedTime: string | null;
 }
 
 function extractState(messages: Array<{ role: string; content: string }>, services: Array<{ title: string; price: number }>): ConvState {
@@ -79,7 +81,9 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
         isAskingAlternatives: false,
         targetDate: null,
         previouslySuggestedCount: 0,
-        isAmbiguous: false
+        isAmbiguous: false,
+        rejectedDates: [],
+        requestedTime: null
     };
 
     if (messages.length === 0) return state;
@@ -146,10 +150,40 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
                 }
             }
 
-            // 4. Extract Preferred Slot (if user mentions a time/date in availability stage)
+            // 4. Extract Preferred Slot (if user mentions a time/date)
             if (state.interestedService && state.clientName && state.clientPhone) {
-                const timeMatch = text.match(/(\d{1,2}):(\d{2})/);
-                if (timeMatch) state.pendingTime = timeMatch[0].padStart(5, '0');
+                // Time detection: matches 13:00, 13hs, 13 hs, a las 13
+                const timeMatch = text.match(/(\d{1,2})[:h\s]*(\d{2})?hs?/i);
+                if (timeMatch) {
+                    const hours = timeMatch[1].padStart(2, '0');
+                    const mins = timeMatch[2] || '00';
+                    state.requestedTime = `${hours}:${mins}`;
+                }
+            }
+
+            // 5. Detect Day Rejection
+            const rejectionKeywords = /no\s+(puedo|sirve|va|es\s+posible).*?(ese\s+dia|el\s+dia|hoy|mañana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)/i;
+            const looseRejection = /ese\s+dia\s+no/i;
+            if (rejectionKeywords.test(text) || looseRejection.test(text)) {
+                // If the bot just suggested a date, we add it to rejections
+                if (state.pendingDate) {
+                    state.rejectedDates.push(state.pendingDate);
+                }
+
+                // Also check for specific day mentions in the rejection
+                const daysArr = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+                for (const d of daysArr) {
+                    if (text.toLowerCase().includes(d)) {
+                        const now = new Date();
+                        const targetIdx = daysArr.indexOf(d);
+                        const currentIdx = now.getDay() === 0 ? 6 : now.getDay() - 1;
+                        let diff = targetIdx - currentIdx;
+                        if (diff <= 0) diff += 7;
+                        const target = new Date(now);
+                        target.setDate(now.getDate() + diff);
+                        state.rejectedDates.push(target.toISOString().split('T')[0]);
+                    }
+                }
             }
         }
     }
@@ -212,7 +246,7 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
     }
 
     if (!state.isAskingAlternatives && !userConfirmsStrict && !state.isAmbiguous) {
-        state.isAskingAlternatives = /otro|horario|disponible|dia|puedo|cambiar|opciones|turno|momento|proximo/i.test(lastUserMsg);
+        state.isAskingAlternatives = /otro|horario|disponible|dia|puedo|cambiar|opciones|turno|momento|proximo/i.test(lastUserMsg) || state.requestedTime !== null;
     }
 
     // Stage update
@@ -258,6 +292,21 @@ function generateResponse(
             if (availableSlots.length > 0) {
                 const isNthSuggestion = state.previouslySuggestedCount > 0;
                 const slot = availableSlots[0];
+
+                // Specific requested time logic
+                if (state.requestedTime) {
+                    const isMatch = slot.time.startsWith(state.requestedTime.split(':')[0]);
+                    if (isMatch) {
+                        return `¡Buenas noticias, **${state.clientName}**! 😊 Tengo disponible el **${slot.date}** a las **${slot.time}hs**, tal como pediste. ✨ ¿Te gustaría confirmarlo?`;
+                    } else {
+                        return `Lo siento, a las **${state.requestedTime}hs** no tengo lugar disponible. 🗓️ Pero tengo disponible el **${slot.date}** a las **${slot.time}hs**. ¿Te serviría?`;
+                    }
+                }
+
+                // If user rejected a day
+                if (state.rejectedDates.length > 0 && state.isAskingAlternatives) {
+                    return `Comprendido, buscamos otro día. 🗓️ ¿Qué te parece el **${slot.date}** a las **${slot.time}hs**? ✨`;
+                }
 
                 if (state.isAskingAlternatives && isNthSuggestion) {
                     return `¡Entendido! No hay problema. 😊 ¿Te sirve quizás el **${slot.date}** a las **${slot.time}hs**? ✨`;
@@ -306,13 +355,32 @@ export default async function handler(req: Request) {
 
             for (let d = 0; d < 14 && foundSlots.length < slotsToFind; d++) {
                 const dateStr = searchDate.toISOString().split('T')[0];
+
+                // Skip rejected dates
+                if (state.rejectedDates.includes(dateStr)) {
+                    searchDate.setDate(searchDate.getDate() + 1);
+                    continue;
+                }
+
                 const { rows: taken } = await pool.query<{ date_time: string }>(
                     "SELECT date_time FROM appointments WHERE date_time::date = $1 AND status != 'canceled'",
                     [dateStr]
                 );
                 const takenHours = new Set(taken.map(r => new Date(r.date_time).getUTCHours()));
 
+                // If user requested a specific time, check it first for this day
+                if (state.requestedTime) {
+                    const reqH = parseInt(state.requestedTime.split(':')[0]);
+                    if (reqH >= 10 && reqH <= 18 && !takenHours.has(reqH)) {
+                        foundSlots.push({ date: dateStr, time: `${reqH.toString().padStart(2, '0')}:00` });
+                        if (foundSlots.length >= slotsToFind) break;
+                    }
+                }
+
                 for (let h = 10; h <= 18; h++) {
+                    // Avoid duplicate if requestedTime was already found for this day
+                    if (state.requestedTime && parseInt(state.requestedTime.split(':')[0]) === h) continue;
+
                     if (!takenHours.has(h)) {
                         // Check if we already suggested this one in history
                         totalFoundToSkip++;
