@@ -1,7 +1,8 @@
 import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon, GripVertical, ChevronUp, ChevronDown, MessageSquare, Phone as PhoneIcon, MoreHorizontal, CheckCircle2, XCircle } from "lucide-react";
+import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon, GripVertical, ChevronUp, ChevronDown, MessageSquare, Phone as PhoneIcon, MoreHorizontal, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuth } from "@/components/AuthContext";
 import {
   Table,
   TableBody,
@@ -20,13 +21,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Lead {
   id: string;
@@ -65,8 +72,9 @@ export interface Service {
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const { logout, user: authUser } = useAuth();
   const queryClient = useQueryClient();
-  const [userName, setUserName] = useState("");
+  const [userName, setUserName] = useState(authUser?.email || "");
   const [activeTab, setActiveTab] = useState<'leads' | 'services'>('leads');
   const [dateFilter, setDateFilter] = useState<'all' | 'hoy' | 'tomorrow'>('all');
 
@@ -88,25 +96,18 @@ export default function Dashboard() {
   const [formDate, setFormDate] = useState("");
   const [formTime, setFormTime] = useState("");
   const [formService, setFormService] = useState("");
-  const [formClientName, setFormClientName] = useState("");
   const [formPhone, setFormPhone] = useState("");
+  const [formClientName, setFormClientName] = useState("");
+
+  // Delete confirm states
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{ id: string, type: 'lead' | 'appointment' | 'service' } | null>(null);
 
   useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const res = await fetch('/api/auth');
-        const data = await res.json();
-        if (!res.ok) {
-          navigate("/auth");
-          return;
-        }
-        setUserName(data.user.email);
-      } catch (e) {
-        navigate("/auth");
-      }
-    };
-    checkAuth();
-  }, [navigate]);
+    if (authUser?.email) {
+      setUserName(authUser.email);
+    }
+  }, [authUser]);
 
   const { data: dashData, isLoading: dashLoading } = useQuery({
     queryKey: ['dashboard'],
@@ -127,11 +128,11 @@ export default function Dashboard() {
   });
 
   const updateAppointment = useMutation({
-    mutationFn: async ({ id, status }: { id: string, status: string }) => {
+    mutationFn: async ({ id, status, date_time, service_type, client_name, phone }: { id: string, status?: string, date_time?: string, service_type?: string, client_name?: string, phone?: string }) => {
       const res = await fetch(`/api/appointments?id=${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status, date_time, service_type, client_name, phone })
       });
       if (!res.ok) throw new Error('Failed to update');
       return res.json();
@@ -205,6 +206,29 @@ export default function Dashboard() {
     }
   });
 
+  const deleteLead = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/leads?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete lead');
+      return res.json();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }
+  });
+
+  const deleteAppointment = useMutation({
+    mutationFn: async (id: string) => {
+      // Real hard delete or just update status? API currently does soft delete in DELETE handler.
+      const res = await fetch(`/api/appointments?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete appointment');
+      return res.json();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }
+  });
+
   const reorderServices = useMutation({
     mutationFn: async (updated: { id: string, sort_order: number }[]) => {
       const res = await fetch('/api/services', {
@@ -222,6 +246,7 @@ export default function Dashboard() {
 
   const handleLogout = async () => {
     await fetch('/api/auth', { method: 'DELETE' });
+    logout();
     navigate("/auth");
   };
 
@@ -231,8 +256,8 @@ export default function Dashboard() {
   };
 
   const handleDeleteService = (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este servicio?')) return;
-    deleteService.mutate(id);
+    setItemToDelete({ id, type: 'service' });
+    setDeleteConfirmOpen(true);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -262,9 +287,9 @@ export default function Dashboard() {
     reorderServices.mutate(updatedServices);
   };
 
-  const leads: Lead[] = dashData?.leads || [];
-  const appointments: Appointment[] = dashData?.appointments || [];
-  const services: Service[] = servData?.services || [];
+  const leads: Lead[] = useMemo(() => dashData?.leads || [], [dashData?.leads]);
+  const appointments: Appointment[] = useMemo(() => dashData?.appointments || [], [dashData?.appointments]);
+  const services: Service[] = useMemo(() => servData?.services || [], [servData?.services]);
 
   const unbookedLeads = useMemo(() => {
     return leads.filter(l => !appointments.some(a => a.lead_id === l.id && a.status !== 'canceled'));
@@ -457,43 +482,57 @@ export default function Dashboard() {
                             </Badge>
                           </TableCell>
                           <TableCell className="px-6 py-4 text-right">
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <button className="p-2 rounded-lg bg-cream/5 text-cream/60 hover:text-gold hover:bg-gold/10 transition-all focus:outline-none">
-                                  <MoreHorizontal className="w-4 h-4" />
-                                </button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-48 bg-noir-light/95 backdrop-blur-xl border border-gold/10 rounded-xl shadow-2xl">
-                                <DropdownMenuLabel className="font-serif text-cream/50 text-xs">Gestión de Cita</DropdownMenuLabel>
-                                <DropdownMenuSeparator className="bg-cream/5" />
-                                {a.status !== 'confirmed' && (
-                                  <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'confirmed' })} className="cursor-pointer text-emerald-400 focus:bg-emerald-400/10 focus:text-emerald-300 transition-colors font-sans text-xs flex items-center gap-2">
-                                    <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar Cita
-                                  </DropdownMenuItem>
-                                )}
-                                <DropdownMenuItem
-                                  onClick={() => {
-                                    setSelectedAppointmentForEdit(a);
-                                    const d = new Date(a.date_time);
-                                    setFormDate(d.toISOString().split('T')[0]);
-                                    setFormTime(d.toTimeString().split(' ')[0].slice(0, 5));
-                                    setFormService(a.service_type || "");
-                                    setFormClientName(a.client_name || "");
-                                    setFormPhone(a.phone || "");
-                                    setIsEditAppointmentModalOpen(true);
-                                  }}
-                                  className="cursor-pointer text-cream/70 focus:bg-gold/10 focus:text-gold transition-colors font-sans text-xs flex items-center gap-2"
-                                >
-                                  <Edit className="w-3.5 h-3.5" /> Editar (Reprogramar)
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator className="bg-cream/5" />
-                                {a.status !== 'canceled' && (
-                                  <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'canceled' })} className="cursor-pointer text-rose focus:bg-rose/10 focus:text-rose transition-colors font-sans text-xs flex items-center gap-2">
-                                    <XCircle className="w-3.5 h-3.5" /> Cancelar Cita
-                                  </DropdownMenuItem>
-                                )}
-                              </DropdownMenuContent>
-                            </DropdownMenu>
+                            <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => {
+                                  setSelectedAppointmentForEdit(a);
+                                  const d = new Date(a.date_time);
+                                  setFormDate(d.toISOString().split('T')[0]);
+                                  setFormTime(d.toTimeString().split(' ')[0].slice(0, 5));
+                                  setFormService(a.service_type || "");
+                                  setFormClientName(a.client_name || "");
+                                  setFormPhone(a.phone || "");
+                                  setIsEditAppointmentModalOpen(true);
+                                }}
+                                title="Editar"
+                                className="p-2 rounded-lg bg-cream/5 text-cream/60 hover:text-gold hover:bg-gold/10 transition-all focus:outline-none"
+                              >
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                onClick={() => {
+                                  setItemToDelete({ id: a.id, type: 'appointment' });
+                                  setDeleteConfirmOpen(true);
+                                }}
+                                title="Eliminar"
+                                className="p-2 rounded-lg bg-rose/5 text-rose hover:text-rose-light hover:bg-rose/10 transition-all focus:outline-none"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <button className="p-2 rounded-lg bg-cream/5 text-cream/60 hover:text-gold hover:bg-gold/10 transition-all focus:outline-none" title="Más opciones">
+                                    <MoreHorizontal className="w-4 h-4" />
+                                  </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-48 bg-noir-light/95 backdrop-blur-xl border border-gold/10 rounded-xl shadow-2xl">
+                                  <DropdownMenuLabel className="font-serif text-cream/50 text-xs">Gestión de Cita</DropdownMenuLabel>
+                                  <DropdownMenuSeparator className="bg-cream/5" />
+                                  {a.status !== 'confirmed' && (
+                                    <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'confirmed' })} className="cursor-pointer text-emerald-400 focus:bg-emerald-400/10 focus:text-emerald-300 transition-colors font-sans text-xs flex items-center gap-2">
+                                      <CheckCircle2 className="w-3.5 h-3.5" /> Marcar Confirmada
+                                    </DropdownMenuItem>
+                                  )}
+                                  {a.status !== 'canceled' && (
+                                    <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'canceled' })} className="cursor-pointer text-rose/70 focus:bg-rose/10 focus:text-rose transition-colors font-sans text-xs flex items-center gap-2">
+                                      <XCircle className="w-3.5 h-3.5" /> Marcar Cancelada
+                                    </DropdownMenuItem>
+                                  )}
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </TableCell>
                         </TableRow>
                       )
@@ -573,6 +612,16 @@ export default function Dashboard() {
                                 className="flex items-center gap-2 px-3 py-1.5 bg-emerald-500/10 border border-emerald-500/20 hover:bg-emerald-500/20 hover:text-emerald-300 hover:border-emerald-500/30 text-emerald-400 rounded-lg transition-all text-xs font-medium"
                               >
                                 <CalendarCheck className="w-3.5 h-3.5" /> Agendar
+                              </button>
+                              <button
+                                onClick={() => {
+                                  setItemToDelete({ id: l.id, type: 'lead' });
+                                  setDeleteConfirmOpen(true);
+                                }}
+                                className="p-2 bg-rose/5 border border-rose/10 hover:bg-rose-500/10 text-rose rounded-lg transition-all"
+                                title="Eliminar Lead"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                           </TableCell>
@@ -961,6 +1010,41 @@ export default function Dashboard() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* 4. Delete Confirmation Dialog */}
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent className="bg-noir border border-rose/20 text-cream">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="font-serif text-rose flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5" />
+              ¿Confirmar eliminación?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-cream/50">
+              {itemToDelete?.type === 'lead'
+                ? "Se eliminará el prospecto y todo su historial de chat. Esta acción no se puede deshacer."
+                : itemToDelete?.type === 'service'
+                  ? "Se eliminará el servicio del catálogo. Las citas existentes no serán afectadas."
+                  : "Se eliminará la cita de la agenda. Esta acción no se puede deshacer."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-noir border-cream/10 text-cream hover:bg-cream/5">Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (itemToDelete) {
+                  if (itemToDelete.type === 'lead') deleteLead.mutate(itemToDelete.id);
+                  if (itemToDelete.type === 'appointment') deleteAppointment.mutate(itemToDelete.id);
+                  if (itemToDelete.type === 'service') deleteService.mutate(itemToDelete.id);
+                  setDeleteConfirmOpen(false);
+                }
+              }}
+              className="bg-rose text-white hover:bg-rose-600 border-none"
+            >
+              Eliminar Definitivamente
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

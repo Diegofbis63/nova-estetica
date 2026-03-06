@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Mail, Lock, ArrowRight, ArrowLeft } from "lucide-react";
+import { useAuth } from "@/components/AuthContext";
 
 export default function Auth() {
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -26,6 +28,7 @@ export default function Auth() {
         throw new Error(data.error || "Error al iniciar sesión");
       }
 
+      login(data.user);
       navigate("/dashboard");
     } catch (err: unknown) {
       const e = err instanceof Error ? err : new Error(String(err));

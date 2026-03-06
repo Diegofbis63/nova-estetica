@@ -1,0 +1,37 @@
+﻿
+> nova-estetica@0.0.0 lint
+> eslint .
+
+
+E:\Antigravity Projects\nova-estetica\api\appointments.ts
+  21:27  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  60:35  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+E:\Antigravity Projects\nova-estetica\api\seed.ts
+  25:17  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+E:\Antigravity Projects\nova-estetica\src\components\ui\button.tsx
+  47:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+E:\Antigravity Projects\nova-estetica\src\components\ui\form.tsx
+  129:10  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+E:\Antigravity Projects\nova-estetica\src\components\ui\navigation-menu.tsx
+  111:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+E:\Antigravity Projects\nova-estetica\src\components\ui\sidebar.tsx
+  636:3  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+E:\Antigravity Projects\nova-estetica\src\components\ui\sonner.tsx
+  27:19  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+E:\Antigravity Projects\nova-estetica\src\components\ui\toggle.tsx
+  37:18  warning  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+E:\Antigravity Projects\nova-estetica\src\pages\Dashboard.tsx
+  298:9  warning  The 'leads' logical expression could make the dependencies of useMemo Hook (at line 304) change on every render. To fix this, wrap the initialization of 'leads' in its own useMemo() Hook                react-hooks/exhaustive-deps
+  299:9  warning  The 'appointments' logical expression could make the dependencies of useMemo Hook (at line 304) change on every render. To fix this, wrap the initialization of 'appointments' in its own useMemo() Hook  react-hooks/exhaustive-deps
+  299:9  warning  The 'appointments' logical expression could make the dependencies of useMemo Hook (at line 333) change on every render. To fix this, wrap the initialization of 'appointments' in its own useMemo() Hook  react-hooks/exhaustive-deps
+
+Ô£û 12 problems (3 errors, 9 warnings)
+

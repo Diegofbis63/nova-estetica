@@ -18,6 +18,15 @@ export default function NovaChat() {
     }
   }, [messages]);
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // 2. Chatbot Auto-focus
+  useEffect(() => {
+    if (!isLoading) {
+      inputRef.current?.focus();
+    }
+  }, [isLoading]);
+
   useEffect(() => {
     // Auto-trigger greeting if empty
     if (messages.length === 0 && !isLoading) {
@@ -187,11 +196,13 @@ export default function NovaChat() {
         >
           <input
             className="flex-1 bg-transparent border-none text-cream text-sm px-4 py-1.5 focus:outline-none focus:ring-0 placeholder:text-cream/25 disabled:opacity-50 font-sans"
+            ref={inputRef}
             aria-label="Escribe tu mensaje para el asistente"
             value={input}
             placeholder="Escribe tu mensaje..."
             onChange={(e) => setInput(e.target.value)}
             disabled={isLoading}
+            autoFocus
           />
           <button
             type="submit"
