@@ -65,6 +65,7 @@ interface ConvState {
     isAskingAlternatives: boolean;
     targetDate: string | null;
     previouslySuggestedCount: number;
+    isAmbiguous: boolean;
 }
 
 function extractState(messages: Array<{ role: string; content: string }>, services: Array<{ title: string; price: number }>): ConvState {
@@ -77,7 +78,8 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
         pendingTime: null,
         isAskingAlternatives: false,
         targetDate: null,
-        previouslySuggestedCount: 0
+        previouslySuggestedCount: 0,
+        isAmbiguous: false
     };
 
     if (messages.length === 0) return state;
@@ -195,8 +197,22 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
         state.isAskingAlternatives = true;
     }
 
-    if (!state.isAskingAlternatives) {
-        state.isAskingAlternatives = /otro|horario|disponible|dia|puedo|cambiar|opciones|turno|momento|no|proximo/i.test(lastUserMsg);
+    const userConfirmsStrict = /\b(si|sí|dale|ok|perfecto|bien|confirmar|confirmado)\b/i.test(lastUserMsg);
+    const userRejectsStrict = /\b(no|otro|cambiar|no puedo|busca|otra|me sirve)\b/i.test(lastUserMsg) || lastUserMsg.includes("no me sirve");
+
+    if (userRejectsStrict) {
+        state.isAskingAlternatives = true;
+        state.isAmbiguous = false;
+    } else if (userConfirmsStrict) {
+        state.isAskingAlternatives = false;
+        state.isAmbiguous = false;
+    } else if (state.stage === 'availability_proposal') {
+        // If it's the proposal stage and we don't see clear YES or clear NO, it's ambiguous
+        state.isAmbiguous = /turno|hora|momento|ver/i.test(lastUserMsg);
+    }
+
+    if (!state.isAskingAlternatives && !userConfirmsStrict && !state.isAmbiguous) {
+        state.isAskingAlternatives = /otro|horario|disponible|dia|puedo|cambiar|opciones|turno|momento|proximo/i.test(lastUserMsg);
     }
 
     // Stage update
@@ -235,6 +251,10 @@ function generateResponse(
             return `¡Un gusto conocerte, **${state.clientName}**! 😊\n\nPara poder enviarte los detalles de tu turno y registrar tu perfil, indícame tu número de WhatsApp.`;
 
         case 'availability_proposal':
+            if (state.isAmbiguous) {
+                return `Entiendo, **${state.clientName}**. ✨ ¿Te gustaría confirmar este horario o prefieres que busquemos otra opción?`;
+            }
+
             if (availableSlots.length > 0) {
                 const isNthSuggestion = state.previouslySuggestedCount > 0;
                 const slot = availableSlots[0];
@@ -244,13 +264,12 @@ function generateResponse(
                 }
 
                 if (isNthSuggestion) {
-                    // Fallback suggestion if somehow called without explicit 'isAskingAlternatives'
                     return `¿Qué te parece el **${slot.date}** a las **${slot.time}hs**? ¿Te queda mejor este horario? 🗓️`;
                 }
 
                 return `¡Perfecto, ${state.clientName}! Ya registré tus datos provisoriamente. 🌟\n\nPara **${state.interestedService}**, el próximo horario disponible que tengo es el **${slot.date} a las ${slot.time}hs**. 🗓️\n\n¿Te queda bien este horario o prefieres buscar otro? (Responde "sí" para confirmar)`;
             }
-            return "Por ahora son los únicos espacios que tengo para esta semana, ¿te gustaría que te contactemos por WhatsApp si se libera algún lugar? 😊";
+            return "Por el momento no tengo más espacios esta semana. 🗓️ ¿Te gustaría dejar tu contacto para que te avisemos si alguien cancela o se libera algún lugar? 😊";
 
         default:
             return "Entiendo. ¿Hay algo más en lo que pueda asistirte para que tu experiencia en NOVA sea perfecta? ✨";
@@ -308,11 +327,12 @@ export default async function handler(req: Request) {
         }
 
         const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content.toLowerCase() || "";
-        const userConfirms = /si|sí|dale|ok|perfecto|bien|está bien|me gusta|confirmar/i.test(lastUserMsg);
+        const userConfirms = /\b(si|sí|dale|ok|perfecto|bien|confirmar|confirmado)\b/i.test(lastUserMsg);
+        const userRejects = /\b(no|otro|cambiar|no puedo|busca|otra|me sirve)\b/i.test(lastUserMsg) || lastUserMsg.includes("no me sirve");
 
         let isBookingConfirmed = false;
-        // User is confirming the explicit date/time we proposed previously
-        if (state.stage === 'availability_proposal' && userConfirms && state.pendingDate && state.pendingTime) {
+        // User is confirming BUT only if they didn't also reject it in the same message (e.g. "no me sirve")
+        if (state.stage === 'availability_proposal' && userConfirms && !userRejects && !state.isAmbiguous && state.pendingDate && state.pendingTime) {
             const dateTimeStr = `${state.pendingDate}T${state.pendingTime}:00Z`;
 
             const { rows: leads } = await pool.query<{ id: string }>(
