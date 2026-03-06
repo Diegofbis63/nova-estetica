@@ -590,6 +590,7 @@ export default function Dashboard() {
                   <TableHeader>
                     <TableRow className="border-b border-cream/5 hover:bg-transparent">
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Prospecto</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Contacto</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Interés</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Última Interacción</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6 text-right">Gestión</TableHead>
@@ -597,14 +598,28 @@ export default function Dashboard() {
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableRow><TableCell colSpan={4} className="py-20 text-center text-cream/20 font-sans italic">Analizando interacciones...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-cream/20 font-sans italic">Analizando interacciones...</TableCell></TableRow>
                     ) : unbookedLeads.length === 0 ? (
-                      <TableRow><TableCell colSpan={4} className="py-20 text-center text-cream/20 font-sans italic">No hay prospectos esperando turno.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-cream/20 font-sans italic">No hay prospectos esperando turno.</TableCell></TableRow>
                     ) : unbookedLeads.map((l, idx) => {
+                      const leadPhone = l.contact_info?.phone;
+                      const hasLeadPhone = !!leadPhone;
                       return (
                         <TableRow key={l.id || idx} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
                           <TableCell className="px-6 py-4">
                             <span className="text-cream font-serif font-bold text-base">{l.client_name}</span>
+                          </TableCell>
+                          <TableCell className="px-6 py-4">
+                            {hasLeadPhone ? (
+                              <a
+                                href={`https://wa.me/${leadPhone.replace(/\D/g, '')}`}
+                                target="_blank" rel="noreferrer"
+                                className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium w-fit border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 rounded-md transition-all"
+                              >
+                                <PhoneIcon className="w-3.5 h-3.5" />
+                                {leadPhone}
+                              </a>
+                            ) : <span className="text-cream/40 text-xs">—</span>}
                           </TableCell>
                           <TableCell className="px-6 py-4">
                             <div className="flex items-center gap-2">
