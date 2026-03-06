@@ -19,15 +19,12 @@ export default function NovaChat() {
   }, [messages]);
 
   const inputRef = useRef<HTMLInputElement>(null);
-  const isFirstRender = useRef(true);
+  const initialized = useRef(false);
 
-  // 2. Chatbot Auto-focus: Only after it stops loading and not on first render
+  // 2. Chatbot Auto-focus: Only after user interacts or bot responds, NEVER on mount
   useEffect(() => {
-    if (!isLoading && !isFirstRender.current) {
+    if (!isLoading && initialized.current) {
       inputRef.current?.focus();
-    }
-    if (isLoading) {
-      isFirstRender.current = false;
     }
   }, [isLoading]);
 
@@ -96,7 +93,10 @@ export default function NovaChat() {
     await streamNovaChat({
       messages: [...messages, userMsg],
       onDelta: (chunk) => upsertAssistant(chunk),
-      onDone: () => setIsLoading(false),
+      onDone: () => {
+        setIsLoading(false);
+        initialized.current = true; // Mark as initialized after first interaction
+      },
       onError: (err) => {
         setError(err);
         setIsLoading(false);

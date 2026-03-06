@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon, GripVertical, ChevronUp, ChevronDown, MessageSquare, Phone as PhoneIcon, MoreHorizontal, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -107,6 +107,7 @@ export default function Dashboard() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{ id: string, type: 'lead' | 'appointment' | 'service' } | null>(null);
 
+  // 2. Sync user profile on mount
   useEffect(() => {
     if (authUser?.email) {
       setUserName(authUser.email);
@@ -189,6 +190,7 @@ export default function Dashboard() {
       if (!res.ok) throw new Error('Failed to create appointment');
       return res.json();
     },
+    // Removed misplaced chat logic chunk in dashboard mutation
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard'] });
       setIsNewAppointmentModalOpen(false);
@@ -312,20 +314,23 @@ export default function Dashboard() {
 
   const filteredAppointments = useMemo(() => {
     const target = new Date();
+    // Only show scheduled/confirmed
+    const activeAppts = appointments.filter(a => a.status === 'scheduled' || a.status === 'confirmed');
+
     if (dateFilter === 'tomorrow') {
       target.setDate(target.getDate() + 1);
-      return appointments.filter(a => {
+      return activeAppts.filter(a => {
         const ad = new Date(a.date_time);
-        return ad.getDate() === target.getDate() && ad.getMonth() === target.getMonth() && ad.getFullYear() === target.getFullYear() && a.status !== 'canceled';
+        return ad.getDate() === target.getDate() && ad.getMonth() === target.getMonth() && ad.getFullYear() === target.getFullYear();
       });
     }
     if (dateFilter === 'hoy') {
-      return appointments.filter(a => {
+      return activeAppts.filter(a => {
         const ad = new Date(a.date_time);
-        return ad.getDate() === target.getDate() && ad.getMonth() === target.getMonth() && ad.getFullYear() === target.getFullYear() && a.status !== 'canceled';
+        return ad.getDate() === target.getDate() && ad.getMonth() === target.getMonth() && ad.getFullYear() === target.getFullYear();
       });
     }
-    return appointments;
+    return activeAppts;
   }, [appointments, dateFilter]);
 
   const loading = dashLoading || servLoading;
