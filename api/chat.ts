@@ -213,7 +213,7 @@ export default async function handler(req: Request) {
             );
 
             await pool.query(
-                "INSERT INTO appointments (lead_id, date_time, service_type, status) VALUES ($1, $2, $3, 'scheduled')",
+                "INSERT INTO appointments (lead_id, date_time, service_type, status) VALUES ($1, $2, $3, 'pending')",
                 [newLead[0].id, dateTimeStr, state.interestedService]
             );
             isBookingConfirmed = true;

@@ -1,6 +1,24 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
+import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon, GripVertical, ChevronUp, ChevronDown, MessageSquare, Phone as PhoneIcon, MoreHorizontal, CheckCircle2, XCircle } from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 
 interface Lead {
   id: string;
@@ -34,18 +52,15 @@ export interface Service {
 }
 
 export default function Dashboard() {
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [userName, setUserName] = useState("");
   const [activeTab, setActiveTab] = useState<'leads' | 'services'>('leads');
+  const [dateFilter, setDateFilter] = useState<'all' | 'tomorrow' | 'nextWeek'>('all');
 
   // Service form state
   const [isEditing, setIsEditing] = useState(false);
   const [currentService, setCurrentService] = useState<Partial<Service>>({});
-
-  const navigate = useNavigate();
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -57,7 +72,6 @@ export default function Dashboard() {
           return;
         }
         setUserName(data.user.email);
-        await fetchData();
       } catch (e) {
         navigate("/auth");
       }
@@ -65,63 +79,111 @@ export default function Dashboard() {
     checkAuth();
   }, [navigate]);
 
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [dashboardRes, servicesRes] = await Promise.all([
-        fetch('/api/dashboard'),
-        fetch('/api/services')
-      ]);
-
-      if (dashboardRes.ok) {
-        const dashData = await dashboardRes.json();
-        setLeads(dashData.leads || []);
-        setAppointments(dashData.appointments || []);
-      }
-      if (servicesRes.ok) {
-        const servData = await servicesRes.json();
-        setServices(servData.services || []);
-      }
-    } catch (e) {
-      console.error(e);
+  const { data: dashData, isLoading: dashLoading } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: async () => {
+      const res = await fetch('/api/dashboard');
+      if (!res.ok) throw new Error('Failed to fetch dashboard');
+      return res.json();
     }
-    setLoading(false);
-  };
+  });
+
+  const { data: servData, isLoading: servLoading } = useQuery({
+    queryKey: ['services'],
+    queryFn: async () => {
+      const res = await fetch('/api/services');
+      if (!res.ok) throw new Error('Failed to fetch services');
+      return res.json();
+    }
+  });
+
+  const updateAppointment = useMutation({
+    mutationFn: async ({ id, status }: { id: string, status: string }) => {
+      const res = await fetch(`/api/appointments?id=${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (!res.ok) throw new Error('Failed to update');
+      return res.json();
+    },
+    onMutate: async (newAppt) => {
+      await queryClient.cancelQueries({ queryKey: ['dashboard'] });
+      const previous = queryClient.getQueryData(['dashboard']);
+      queryClient.setQueryData(['dashboard'], (old: any) => {
+        if (!old) return old;
+        return {
+          ...old,
+          appointments: old.appointments.map((a: Appointment) => a.id === newAppt.id ? { ...a, status: newAppt.status } : a)
+        };
+      });
+      return { previous };
+    },
+    onError: (err, newAppt, context) => {
+      queryClient.setQueryData(['dashboard'], context?.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }
+  });
+
+  const saveService = useMutation({
+    mutationFn: async (svc: Partial<Service>) => {
+      const method = svc.id ? 'PUT' : 'POST';
+      const res = await fetch('/api/services', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(svc)
+      });
+      if (!res.ok) throw new Error('Failed to save service');
+      return res.json();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+      setIsEditing(false);
+      setCurrentService({});
+    }
+  });
+
+  const deleteService = useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/services?id=${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete');
+      return res.json();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    }
+  });
+
+  const reorderServices = useMutation({
+    mutationFn: async (updated: any[]) => {
+      const res = await fetch('/api/services', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reorder: updated })
+      });
+      if (!res.ok) throw new Error('Failed to save order');
+      return res.json();
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['services'] });
+    }
+  });
 
   const handleLogout = async () => {
     await fetch('/api/auth', { method: 'DELETE' });
     navigate("/auth");
   };
 
-  const handleSaveService = async (e: React.FormEvent) => {
+  const handleSaveService = (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    const method = currentService.id ? 'PUT' : 'POST';
-    try {
-      await fetch('/api/services', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(currentService)
-      });
-      setIsEditing(false);
-      setCurrentService({});
-      await fetchData();
-    } catch (e) {
-      console.error(e);
-      setLoading(false);
-    }
+    saveService.mutate(currentService);
   };
 
-  const handleDeleteService = async (id: string) => {
+  const handleDeleteService = (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este servicio?')) return;
-    setLoading(true);
-    try {
-      await fetch(`/api/services?id=${id}`, { method: 'DELETE' });
-      await fetchData();
-    } catch (e) {
-      console.error(e);
-      setLoading(false);
-    }
+    deleteService.mutate(id);
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -135,41 +197,57 @@ export default function Dashboard() {
     }
   };
 
-  const moveService = async (index: number, direction: 'up' | 'down') => {
-    const newServices = [...services];
+  const moveService = (index: number, direction: 'up' | 'down') => {
+    if (!servData?.services) return;
+    const newServices = [...servData.services];
     const targetIndex = direction === 'up' ? index - 1 : index + 1;
 
-    if (targetIndex < 0 || targetIndex >= services.length) return;
+    if (targetIndex < 0 || targetIndex >= newServices.length) return;
 
     const [moved] = newServices.splice(index, 1);
     newServices.splice(targetIndex, 0, moved);
 
-    // Optimized: only update the affected ones or the entire sequence
-    const updatedServices = newServices.map((s, i) => ({ ...s, sort_order: i }));
-    setServices(updatedServices);
+    const updatedServices = newServices.map((s, i) => ({ id: s.id, sort_order: i }));
+    queryClient.setQueryData(['services'], { services: newServices.map((s, i) => ({ ...s, sort_order: i })) });
 
-    try {
-      await fetch('/api/services', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reorder: updatedServices.map(s => ({ id: s.id, sort_order: s.sort_order })) })
-      });
-    } catch (e) {
-      console.error('Failed to save order:', e);
-      fetchData(); // Rollback
-    }
+    reorderServices.mutate(updatedServices);
   };
 
-  const avgIntent = leads.length > 0
-    ? Math.round(leads.reduce((sum, l) => sum + (l.intent_score || 0), 0) / leads.length)
-    : 0;
-  const scheduledCount = appointments.filter(a => a.status === "scheduled").length;
+  const leads: Lead[] = dashData?.leads || [];
+  const appointments: Appointment[] = dashData?.appointments || [];
+  const services: Service[] = servData?.services || [];
+
+  const now = new Date();
+  const leadsDeHoy = leads.filter(l => new Date(l.created_at) >= new Date(now.getTime() - 24 * 60 * 60 * 1000)).length;
+  const pendientesCount = appointments.filter(a => a.status === "pending" || a.status === "scheduled").length;
+  const conversion = leads.length > 0 ? Math.round((appointments.length / leads.length) * 100) : 0;
 
   const stats = [
-    { icon: Users, label: "Total Leads", value: leads.length, color: "text-gold" },
-    { icon: CalendarCheck, label: "Citas Agendadas", value: scheduledCount, color: "text-gold" },
-    { icon: TrendingUp, label: "Intent Score Prom.", value: `${avgIntent}%`, color: "text-gold" },
+    { icon: Users, label: "Leads de Hoy", value: leadsDeHoy, color: "text-gold" },
+    { icon: CalendarCheck, label: "Turnos Pendientes", value: pendientesCount, color: "text-amber-400" },
+    { icon: TrendingUp, label: "Conversión AI", value: `${conversion}%`, color: "text-emerald-400" },
   ];
+
+  const filteredAppointments = useMemo(() => {
+    const target = new Date();
+    if (dateFilter === 'tomorrow') {
+      target.setDate(target.getDate() + 1);
+      return appointments.filter(a => new Date(a.date_time).getDate() === target.getDate() && a.status !== 'canceled');
+    }
+    if (dateFilter === 'nextWeek') {
+      const nextWeekStart = new Date(target);
+      nextWeekStart.setDate(target.getDate() + 7 - target.getDay());
+      const nextWeekEnd = new Date(nextWeekStart);
+      nextWeekEnd.setDate(nextWeekStart.getDate() + 6);
+      return appointments.filter(a => {
+        const ad = new Date(a.date_time);
+        return ad >= nextWeekStart && ad <= nextWeekEnd && a.status !== 'canceled';
+      });
+    }
+    return appointments;
+  }, [appointments, dateFilter]);
+
+  const loading = dashLoading || servLoading;
 
   return (
     <div className="min-h-screen bg-noir text-cream">
@@ -195,7 +273,7 @@ export default function Dashboard() {
                 <span className="text-xs font-serif font-bold tracking-[0.2em] uppercase text-cream">
                   NOVA Estética
                 </span>
-                <p className="text-[9px] text-cream/20 font-sans tracking-wide">Panel Administrativo • {userName}</p>
+                <p className="text-[9px] text-cream/20 font-sans tracking-wide">Centro Operativo • {userName}</p>
               </div>
             </div>
           </div>
@@ -205,7 +283,7 @@ export default function Dashboard() {
               onClick={() => setActiveTab('leads')}
               className={`px-5 py-1.5 text-xs font-sans uppercase tracking-widest rounded-full transition-all ${activeTab === 'leads' ? 'bg-gold text-noir font-bold shadow-lg' : 'text-cream/40 hover:text-cream'}`}
             >
-              Gestión de Leads
+              Gestión Operativa
             </button>
             <button
               onClick={() => setActiveTab('services')}
@@ -217,7 +295,7 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={fetchData}
+              onClick={() => queryClient.invalidateQueries()}
               disabled={loading}
               className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-cream/40 hover:text-gold transition-colors border border-cream/5 rounded-full px-4 py-2 hover:bg-gold/5"
             >
@@ -238,7 +316,7 @@ export default function Dashboard() {
           <div className="max-w-7xl mx-auto px-6 py-10 animate-in fade-in duration-500">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
               {stats.map((s, i) => (
-                <div key={i} className="group p-6 rounded-2xl border border-cream/5 bg-noir-light/30 backdrop-blur-sm hover:border-gold/20 transition-all duration-300">
+                <div key={i} className="group p-6 rounded-2xl border border-cream/5 bg-noir-light/30 backdrop-blur-sm hover:border-gold/20 transition-all duration-300 shadow-xl">
                   <div className="flex items-center gap-4 mb-5">
                     <div className="w-12 h-12 rounded-xl bg-gold/5 flex items-center justify-center group-hover:bg-gold/10 transition-colors">
                       <s.icon className={`w-5 h-5 ${s.color}`} />
@@ -253,126 +331,172 @@ export default function Dashboard() {
             </div>
 
             <div className="mb-12">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-gold rounded-full" />
-                <h3 className="text-lg font-serif font-bold text-cream tracking-tight">
-                  Clientes Potenciales y Conversaciones
-                </h3>
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-6 bg-gold rounded-full" />
+                  <h3 className="text-lg font-serif font-bold text-cream tracking-tight">
+                    Flujo de Clientes Potenciales (Leads)
+                  </h3>
+                </div>
               </div>
-              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 overflow-hidden shadow-2xl overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-noir-light/40 text-cream/30 text-[10px] font-sans uppercase tracking-[0.2em] border-b border-cream/5">
-                      <th className="text-left px-6 py-5">Cliente</th>
-                      <th className="text-left px-6 py-5">Información</th>
-                      <th className="text-left px-6 py-5">Estado</th>
-                      <th className="text-left px-6 py-5">Interés (AI)</th>
-                      <th className="text-left px-6 py-5">Registrado</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cream/5">
+              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 shadow-2xl overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-cream/5 hover:bg-transparent">
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Cliente</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Contacto</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Estado (AI)</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Registrado</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6 text-right">Gestión</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {loading ? (
-                      <tr><td colSpan={5} className="px-6 py-20 text-center text-cream/20 font-sans italic">Analizando registros premium...</td></tr>
+                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-cream/20 font-sans italic">Analizando interacciones...</TableCell></TableRow>
                     ) : leads.length === 0 ? (
-                      <tr><td colSpan={5} className="px-6 py-20 text-center text-cream/20 font-sans italic">Aún no hay interacciones registradas. Nova está lista para recibir clientes.</td></tr>
+                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-cream/20 font-sans italic">Nova está a la espera de nuevos clientes.</TableCell></TableRow>
                     ) : leads.map((l, idx) => {
-                      const displayContact = l.contact_info?.email || l.contact_info?.phone || "Sin contacto";
+                      const hasPhone = !!l.contact_info?.phone;
+                      const displayPhone = l.contact_info?.phone || "";
+                      const displayEmail = l.contact_info?.email || "";
+
                       return (
-                        <tr key={l.id || idx} className="hover:bg-cream/[0.02] transition-colors group">
-                          <td className="px-6 py-5">
+                        <TableRow key={l.id || idx} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
+                          <TableCell className="px-6 py-4">
                             <div className="flex flex-col">
-                              <span className="text-cream font-serif font-bold text-md">{l.client_name}</span>
-                              <span className="text-[10px] text-gold/50 font-sans uppercase tracking-wider">Lead Identificado</span>
+                              <span className="text-cream font-serif font-bold text-base">{l.client_name}</span>
+                              <span className="text-[10px] text-gold/50 font-sans uppercase tracking-wider">Interés: {l.intent_score || 0}%</span>
                             </div>
-                          </td>
-                          <td className="px-6 py-5">
-                            <span className="text-cream/50 text-xs font-sans tracking-wide">{displayContact}</span>
-                          </td>
-                          <td className="px-6 py-5">
-                            <span className={`text-[9px] font-sans font-bold uppercase tracking-widest px-3 py-1 rounded-full border ${l.status === "qualified" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
+                          </TableCell>
+                          <TableCell className="px-6 py-4">
+                            <div className="flex flex-col font-sans gap-1.5">
+                              {hasPhone ? (
+                                <a
+                                  href={`https://wa.me/${displayPhone.replace(/\\D/g, '')}`}
+                                  target="_blank" rel="noreferrer"
+                                  className="flex items-center gap-2 text-emerald-400 hover:text-emerald-300 text-sm font-medium w-fit border border-emerald-500/20 bg-emerald-500/5 px-2 py-1 rounded-md transition-all"
+                                >
+                                  <PhoneIcon className="w-3.5 h-3.5" />
+                                  {displayPhone}
+                                </a>
+                              ) : <span className="text-cream/40 text-xs">—</span>}
+                              {displayEmail && <span className="text-cream/30 text-[10px] truncate max-w-[150px]" title={displayEmail}>{displayEmail}</span>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-6 py-4">
+                            <Badge variant="outline" className={`text-[9px] font-sans uppercase tracking-widest rounded-full ${l.status === "qualified" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
                               l.status === "contacted" ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
                                 "text-cream/40 border-cream/10 bg-cream/5"
                               }`}>
-                              {l.status === "qualified" ? "Interés Alto" : l.status === "contacted" ? "En Gestión" : "Nuevo"}
-                            </span>
-                          </td>
-                          <td className="px-6 py-5">
-                            <div className="flex items-center gap-3">
-                              <div className="w-24 h-1.5 rounded-full bg-noir overflow-hidden border border-cream/5">
-                                <div
-                                  className={`h-full transition-all duration-1000 ${(l.intent_score || 0) >= 70 ? "bg-gold" :
-                                    (l.intent_score || 0) >= 40 ? "bg-gold/60" :
-                                      "bg-cream/20"
-                                    }`}
-                                  style={{ width: `${l.intent_score || 0}%` }}
-                                />
-                              </div>
-                              <span className="text-[10px] text-gold font-bold font-sans">{l.intent_score || 0}%</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-5 text-cream/30 text-xs font-sans">
+                              {l.status === "qualified" ? "Calificado" : l.status === "contacted" ? "En Gestión" : "Nuevo"}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="px-6 py-4 text-cream/30 text-xs font-sans">
                             {l.created_at ? new Date(l.created_at).toLocaleDateString("es-AR") : "—"}
-                          </td>
-                        </tr>
+                          </TableCell>
+                          <TableCell className="px-6 py-4 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <button className="p-2 bg-cream/5 border border-cream/10 hover:bg-gold/10 hover:text-gold hover:border-gold/20 text-cream/40 rounded-lg transition-all" title="Ver Conversación (AI)">
+                                <MessageSquare className="w-4 h-4" />
+                              </button>
+                              <button className="p-2 bg-cream/5 border border-cream/10 hover:bg-emerald-500/10 hover:text-emerald-400 hover:border-emerald-500/20 text-cream/40 rounded-lg transition-all" title="Convertir a Cita Manual">
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
                       );
                     })}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </div>
 
             <div>
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-1.5 h-6 bg-gold rounded-full" />
-                <h3 className="text-lg font-serif font-bold text-cream tracking-tight">
-                  Próximas Citas Agendadas
-                </h3>
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between mb-6 gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-1.5 h-6 bg-gold rounded-full" />
+                  <h3 className="text-lg font-serif font-bold text-cream tracking-tight">
+                    Citas Agendadas
+                  </h3>
+                </div>
+                <div className="flex items-center gap-2 bg-noir-light/60 p-1 rounded-full border border-cream/5">
+                  <button onClick={() => setDateFilter('all')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'all' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Todas</button>
+                  <button onClick={() => setDateFilter('tomorrow')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'tomorrow' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Mañana</button>
+                  <button onClick={() => setDateFilter('nextWeek')} className={`px-4 py-1 text-[10px] font-sans uppercase tracking-widest rounded-full transition-all ${dateFilter === 'nextWeek' ? 'bg-gold text-noir font-bold' : 'text-cream/40 hover:text-cream'}`}>Semana Sgte</button>
+                </div>
               </div>
-              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 overflow-hidden shadow-2xl overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="bg-noir-light/40 text-cream/30 text-[10px] font-sans uppercase tracking-[0.2em] border-b border-cream/5">
-                      <th className="text-left px-6 py-5">Servicio</th>
-                      <th className="text-left px-6 py-5">Fecha y Horario</th>
-                      <th className="text-left px-6 py-5">Estado</th>
-                      <th className="text-left px-6 py-5">Registrada</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-cream/5">
+
+              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 shadow-2xl overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="border-b border-cream/5 hover:bg-transparent">
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Servicio</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Fecha y Horario</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Estado</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6 text-right">Acciones</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {loading ? (
-                      <tr><td colSpan={4} className="px-6 py-20 text-center text-cream/20 font-sans italic">Organizando agenda premium...</td></tr>
-                    ) : appointments.length === 0 ? (
-                      <tr><td colSpan={4} className="px-6 py-20 text-center text-cream/20 font-sans italic">Nova está esperando para agendar el próximo tratamiento.</td></tr>
-                    ) : appointments.map((a) => (
-                      <tr key={a.id} className="hover:bg-cream/[0.02] transition-colors group">
-                        <td className="px-6 py-5">
+                      <TableRow><TableCell colSpan={4} className="py-20 text-center text-cream/20 font-sans italic">Sincronizando agenda...</TableCell></TableRow>
+                    ) : filteredAppointments.length === 0 ? (
+                      <TableRow><TableCell colSpan={4} className="py-20 text-center text-cream/20 font-sans italic">No hay citas para el filtro seleccionado.</TableCell></TableRow>
+                    ) : filteredAppointments.map((a) => (
+                      <TableRow key={a.id} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
+                        <TableCell className="px-6 py-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-2 h-2 rounded-full bg-gold" />
-                            <span className="text-cream font-serif font-bold text-md">{a.service_type || "Tratamiento Geral"}</span>
+                            <div className="w-2 h-2 rounded-full bg-gold shadow-[0_0_8px_rgba(238,197,143,0.5)]" />
+                            <span className="text-cream font-serif font-bold text-base">{a.service_type || "Tratamiento General"}</span>
                           </div>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className="text-cream/60 text-xs font-sans tracking-wide font-bold uppercase">
-                            {new Date(a.date_time).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" })}
-                            {" • "}
-                            {new Date(a.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
+                          <span className="text-cream/80 text-sm font-sans tracking-wide font-medium">
+                            {new Date(a.date_time).toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "short" }).replace(/^\w/, c => c.toUpperCase())}
+                            <span className="text-cream/30 mx-2">•</span>
+                            <span className="text-gold">{new Date(a.date_time).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}hs</span>
                           </span>
-                        </td>
-                        <td className="px-6 py-5">
-                          <span className={`text-[9px] font-sans font-bold uppercase tracking-widest px-3 py-1 rounded-full border ${a.status === "scheduled" ? "text-gold border-gold/20 bg-gold/5" :
-                            a.status === "completed" ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
-                              "text-cream/20 border-cream/5 bg-cream/5"
+                        </TableCell>
+                        <TableCell className="px-6 py-4">
+                          <Badge variant="outline" className={`text-[9px] font-sans uppercase tracking-widest rounded-full ${a.status === 'confirmed' ? "text-emerald-400 border-emerald-500/20 bg-emerald-500/5" :
+                              a.status === 'canceled' ? "text-rose border-rose/20 bg-rose/5" :
+                                a.status === 'pending' || a.status === 'scheduled' ? "text-amber-400 border-amber-500/20 bg-amber-500/5" :
+                                  "text-cream/20 border-cream/5 bg-cream/5"
                             }`}>
-                            {a.status === "scheduled" ? "Confirmada" : a.status === "completed" ? "Finalizada" : a.status}
-                          </span>
-                        </td>
-                        <td className="px-6 py-5 text-cream/30 text-xs font-sans uppercase">
-                          {a.created_at ? new Date(a.created_at).toLocaleDateString("es-AR") : "—"}
-                        </td>
-                      </tr>
+                            {a.status === 'confirmed' ? "Confirmada" : a.status === 'canceled' ? "Cancelada" : a.status === 'pending' || a.status === 'scheduled' ? "Pendiente" : a.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="px-6 py-4 text-right">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button className="p-2 rounded-lg bg-cream/5 text-cream/60 hover:text-gold hover:bg-gold/10 transition-all focus:outline-none">
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-48 bg-noir-light/95 backdrop-blur-xl border border-gold/10 rounded-xl shadow-2xl">
+                              <DropdownMenuLabel className="font-serif text-cream/50 text-xs">Gestión de Cita</DropdownMenuLabel>
+                              <DropdownMenuSeparator className="bg-cream/5" />
+                              {a.status !== 'confirmed' && (
+                                <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'confirmed' })} className="cursor-pointer text-emerald-400 focus:bg-emerald-400/10 focus:text-emerald-300 transition-colors font-sans text-xs flex items-center gap-2">
+                                  <CheckCircle2 className="w-3.5 h-3.5" /> Confirmar (Contactado)
+                                </DropdownMenuItem>
+                              )}
+                              <DropdownMenuItem className="cursor-pointer text-cream/70 focus:bg-gold/10 focus:text-gold transition-colors font-sans text-xs flex items-center gap-2">
+                                <Edit className="w-3.5 h-3.5" /> Editar (Reprogramar)
+                              </DropdownMenuItem>
+                              <DropdownMenuSeparator className="bg-cream/5" />
+                              {a.status !== 'canceled' && (
+                                <DropdownMenuItem onClick={() => updateAppointment.mutate({ id: a.id, status: 'canceled' })} className="cursor-pointer text-rose focus:bg-rose/10 focus:text-rose transition-colors font-sans text-xs flex items-center gap-2">
+                                  <XCircle className="w-3.5 h-3.5" /> Cancelar Cita
+                                </DropdownMenuItem>
+                              )}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </div>
           </div>
@@ -461,8 +585,8 @@ export default function Dashboard() {
                   </div>
 
                   <div className="flex gap-4 pt-6">
-                    <button type="submit" disabled={loading} className="flex-1 bg-gradient-to-r from-gold to-gold-light text-noir font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-gold/20">
-                      {loading ? 'Procesando...' : 'Guardar Tratamiento'}
+                    <button type="submit" disabled={saveService.isPending} className="flex-1 bg-gradient-to-r from-gold to-gold-light text-noir font-bold py-3.5 rounded-xl transition-all shadow-lg hover:shadow-gold/20">
+                      {saveService.isPending ? 'Procesando...' : 'Guardar Tratamiento'}
                     </button>
                     <button type="button" onClick={() => setIsEditing(false)} className="flex-1 bg-noir-light/60 text-cream/60 border border-cream/5 py-3.5 rounded-xl transition-all hover:bg-noir-light">
                       Cancelar
@@ -474,7 +598,6 @@ export default function Dashboard() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                 {services.map((s, index) => (
                   <div key={s.id} className={`group rounded-2xl border ${s.active ? 'border-cream/5 bg-noir-light/30' : 'border-noir bg-noir opacity-40'} overflow-hidden transition-all duration-300 hover:translate-y-[-4px] hover:border-gold/20 hover:shadow-2xl relative shadow-xl`}>
-                    {/* Order Controls */}
                     <div className="absolute top-2 left-2 z-20 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); moveService(index, 'up'); }}
