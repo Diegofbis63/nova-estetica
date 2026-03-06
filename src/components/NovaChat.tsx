@@ -93,7 +93,7 @@ export default function NovaChat() {
 
   return (
     <div
-      className="flex flex-col h-[550px] w-full max-w-2xl mx-auto bg-noir-light/80 backdrop-blur-xl border border-cream/10 rounded-2xl overflow-hidden"
+      className="flex flex-col h-[650px] w-full max-w-3xl mx-auto bg-noir-light/80 backdrop-blur-xl border border-cream/10 rounded-2xl overflow-hidden shadow-2xl"
       role="region"
       aria-label="Chat de agendamiento NOVA"
     >
