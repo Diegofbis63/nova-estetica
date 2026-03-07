@@ -26,6 +26,17 @@ export default function Auth() {
     setLoading(true);
 
     try {
+      // ─── DEMO MODE BYPASS ───
+      if (email === "demo@novaestetica.com" && password === "demo123") {
+        login({
+          id: "demo-user",
+          email: "demo@novaestetica.com",
+          role: "guest"
+        });
+        navigate("/dashboard");
+        return;
+      }
+
       const res = await fetch("/api/auth", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -37,7 +48,7 @@ export default function Auth() {
         throw new Error(data.error || "Error al iniciar sesión");
       }
 
-      login(data.user);
+      login({ ...data.user, role: 'admin' });
       navigate("/dashboard");
     } catch (err: unknown) {
       const e = err instanceof Error ? err : new Error(String(err));

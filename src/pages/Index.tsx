@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import NovaChat from "@/components/NovaChat";
@@ -8,9 +9,24 @@ import GallerySection from "@/components/landing/GallerySection";
 import WhyUsSection from "@/components/landing/WhyUsSection";
 import TestimonialsSection from "@/components/landing/TestimonialsSection";
 import FloatingChat from "@/components/FloatingChat";
-import { LogIn, MapPin, Phone, Instagram, Clock, Mail } from "lucide-react";
+import { LogIn, MapPin, Phone, Instagram, Clock, Mail, Menu, X } from "lucide-react";
 
 const Index = () => {
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
   return (
     <div className="min-h-screen bg-noir text-cream relative overflow-hidden">
       {/* Subtle warm ambient */}
@@ -19,11 +35,21 @@ const Index = () => {
         <div className="absolute bottom-0 right-0 w-[500px] h-[400px] bg-rose/[0.03] rounded-full blur-[120px]" />
       </div>
 
-      <div className="relative z-10">
-        {/* Header */}
-        <header className="flex items-center justify-between px-6 md:px-12 py-6">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold to-gold-light flex items-center justify-center" role="img" aria-label="Logo de NOVA Estética">
+      <div className="relative z-10 pt-20 md:pt-24">
+        {/* Header - Fixed & Glassmorphism */}
+        <header
+          className={`fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-12 py-4 transition-all duration-300 ${isScrolled
+            ? "bg-noir/80 backdrop-blur-md shadow-lg border-b border-cream/5 py-3"
+            : "bg-transparent py-6"
+            }`}
+        >
+          <div
+            className="flex items-center gap-3 cursor-pointer group"
+            onClick={scrollToTop}
+            role="button"
+            aria-label="Volver al inicio"
+          >
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-gold to-gold-light flex items-center justify-center transition-transform group-hover:scale-110" role="img">
               <span className="text-noir font-serif font-bold text-lg">N</span>
             </div>
             <div>
@@ -33,46 +59,97 @@ const Index = () => {
               <p className="text-[11px] font-sans text-cream/60 tracking-[0.2em] uppercase">Centro de Belleza Premium</p>
             </div>
           </div>
-          <nav className="flex items-center gap-6">
-            <a href="#servicios" className="hidden md:block text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
-              Servicios
-            </a>
-            <a href="#galeria" className="hidden md:block text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
-              Resultados
-            </a>
-            <a href="#chat" className="hidden md:block text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
-              Agendar
-            </a>
+          <nav className="flex items-center gap-4 md:gap-6">
+            <div className="hidden md:flex items-center gap-6">
+              <a href="#servicios" className="text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
+                Servicios
+              </a>
+              <a href="#galeria" className="text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
+                Resultados
+              </a>
+              <a href="#chat" className="text-[11px] text-cream/50 hover:text-gold transition-colors font-sans uppercase tracking-[0.15em]">
+                Agendar
+              </a>
+            </div>
             <Link
               to="/auth"
-              className="flex items-center gap-2 text-xs font-sans text-gold/70 hover:text-gold border border-gold/20 rounded-full px-4 py-1.5 hover:bg-gold/5 transition-all"
+              className="hidden sm:flex items-center gap-2 text-[10px] md:text-xs font-sans text-gold/70 hover:text-gold border border-gold/20 rounded-full px-3 md:px-4 py-1.5 hover:bg-gold/5 transition-all"
             >
-              <LogIn className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Dashboard</span>
+              <LogIn className="w-3 md:w-3.5 h-3 md:h-3.5" />
+              <span>Dashboard</span>
             </Link>
+
+            {/* Mobile Menu Toggle */}
+            <button
+              className="md:hidden p-2 text-cream/60 hover:text-gold transition-colors"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              aria-label={isMobileMenuOpen ? "Cerrar menú" : "Abrir menú"}
+            >
+              {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            </button>
           </nav>
+
+          {/* Mobile Overlay Menu */}
+          {isMobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="fixed inset-0 z-40 md:hidden bg-noir/95 backdrop-blur-xl pt-24 px-8 flex flex-col gap-8 transition-all"
+            >
+              <a
+                href="#servicios"
+                className="text-2xl font-serif text-cream hover:text-gold transition-colors border-b border-cream/5 pb-4"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Servicios
+              </a>
+              <a
+                href="#galeria"
+                className="text-2xl font-serif text-cream hover:text-gold transition-colors border-b border-cream/5 pb-4"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Resultados
+              </a>
+              <a
+                href="#chat"
+                className="text-2xl font-serif text-cream hover:text-gold transition-colors border-b border-cream/5 pb-4"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                Agendar
+              </a>
+              <Link
+                to="/auth"
+                className="text-2xl font-serif text-gold hover:text-gold-light transition-colors flex items-center gap-3"
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <LogIn className="w-6 h-6" />
+                Acceso Dashboard
+              </Link>
+            </motion.div>
+          )}
         </header>
 
         <HeroSection />
 
         {/* Info bar */}
-        <ScrollReveal className="px-4 pb-16">
-          <div className="max-w-6xl mx-auto flex flex-wrap justify-center gap-12 text-cream/80 text-sm md:text-base font-sans font-medium">
-            <div className="flex items-center gap-3">
-              <MapPin className="w-5 h-5 text-gold" />
-              Av. Libertador 1234, Buenos Aires
+        <ScrollReveal className="px-6 pb-16">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 md:gap-12 text-cream/80 text-sm font-sans font-medium">
+            <div className="flex items-center gap-3 justify-center md:justify-start">
+              <MapPin className="w-5 h-5 text-gold shrink-0" />
+              <span className="text-center md:text-left">Av. Libertador 1234, Buenos Aires</span>
             </div>
-            <div className="flex items-center gap-3">
-              <Clock className="w-5 h-5 text-gold" />
-              Lun–Sáb 9:00–20:00
+            <div className="flex items-center gap-3 justify-center md:justify-start">
+              <Clock className="w-5 h-5 text-gold shrink-0" />
+              <span className="text-center md:text-left">Lun–Sáb 9:00–20:00</span>
             </div>
-            <div className="flex items-center gap-3">
-              <Phone className="w-5 h-5 text-gold" />
-              +54 11 5555-1234
+            <div className="flex items-center gap-3 justify-center md:justify-start">
+              <Phone className="w-5 h-5 text-gold shrink-0" />
+              <span className="text-center md:text-left">+54 11 5555-1234</span>
             </div>
-            <div className="flex items-center gap-3">
-              <Instagram className="w-5 h-5 text-gold" />
-              @nova.estetica
+            <div className="flex items-center gap-3 justify-center md:justify-start">
+              <Instagram className="w-5 h-5 text-gold shrink-0" />
+              <span className="text-center md:text-left">@nova.estetica</span>
             </div>
           </div>
         </ScrollReveal>

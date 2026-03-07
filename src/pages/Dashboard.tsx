@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { LogOut, Users, CalendarCheck, TrendingUp, ArrowLeft, RefreshCw, Plus, Trash2, Edit, Upload, Image as ImageIcon, GripVertical, ChevronUp, ChevronDown, MessageSquare, Phone as PhoneIcon, MoreHorizontal, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/components/AuthContext";
+import { toast } from "sonner";
 import {
   Table,
   TableBody,
@@ -49,6 +50,7 @@ interface Lead {
   status: string;
   intent_score: number;
   created_at: string;
+  is_bot_enabled: boolean;
   chat_history?: { role: string; content: string }[];
 }
 
@@ -114,18 +116,42 @@ export default function Dashboard() {
     }
   }, [authUser]);
 
-  const { data: dashData, isLoading: dashLoading, error: dashError } = useQuery({
+  const { data: dashData, isFetching: dashFetching, isLoading: dashLoading, error: dashError } = useQuery({
     queryKey: ['dashboard'],
     queryFn: async () => {
+      if (authUser?.role === 'guest') {
+        // Return realistic mock data for demo
+        return {
+          leads: [
+            { id: '1', client_name: 'Marcos Pérez', contact_info: { phone: '+5493511234567' }, status: 'AWAITING_NAME', intent_score: 85, created_at: new Date().toISOString(), is_bot_enabled: true },
+            { id: '2', client_name: 'Lucía Fernández', contact_info: { phone: '+5491198765432' }, status: 'CONFIRMED', intent_score: 98, created_at: new Date(Date.now() - 3600000).toISOString(), is_bot_enabled: true },
+            { id: '3', client_name: 'Roberto Gómez', contact_info: { phone: '+5492615550000' }, status: 'AVAILABILITY_PROPOSAL', intent_score: 60, created_at: new Date(Date.now() - 7200000).toISOString(), is_bot_enabled: false },
+            { id: '4', client_name: 'Elena Soria', contact_info: { phone: '+5493412223333' }, status: 'SERVICE_CLARIFICATION', intent_score: 75, created_at: new Date(Date.now() - 14400000).toISOString(), is_bot_enabled: true },
+          ],
+          appointments: [
+            { id: 'a1', lead_id: '2', client_name: 'Lucía Fernández', phone: '+5491198765432', service_type: 'Botox Preventivo', date_time: new Date(Date.now() + 86400000).toISOString(), status: 'scheduled', created_at: new Date().toISOString() },
+            { id: 'a2', lead_id: '5', client_name: 'Carlos Martínez', phone: '+5493510001111', service_type: 'Limpieza Facial Profunda', date_time: new Date(Date.now() + 172800000).toISOString(), status: 'pending', created_at: new Date().toISOString() },
+          ]
+        };
+      }
       const res = await fetch('/api/dashboard');
       if (!res.ok) throw new Error('Failed to fetch dashboard');
       return res.json();
     }
   });
 
-  const { data: servData, isLoading: servLoading, error: servError } = useQuery({
+  const { data: servData, isFetching: servFetching, isLoading: servLoading, error: servError } = useQuery({
     queryKey: ['services'],
     queryFn: async () => {
+      if (authUser?.role === 'guest') {
+        return {
+          services: [
+            { id: 's1', title: 'Botox Preventivo', description: 'Elimina líneas de expresión.', price: '120000', duration: '30 min', image_url: '', active: true, sort_order: 0 },
+            { id: 's2', title: 'Limpieza Facial', description: 'Hidratación y limpieza profunda.', price: '45000', duration: '60 min', image_url: '', active: true, sort_order: 1 },
+            { id: 's3', title: 'Peeling Químico', description: 'Renovación celular de la piel.', price: '55000', duration: '45 min', image_url: '', active: true, sort_order: 2 },
+          ]
+        };
+      }
       const res = await fetch('/api/services');
       if (!res.ok) throw new Error('Failed to fetch services');
       return res.json();
@@ -134,6 +160,10 @@ export default function Dashboard() {
 
   const updateAppointment = useMutation({
     mutationFn: async ({ id, status, date_time, service_type, client_name, phone }: { id: string, status?: string, date_time?: string, service_type?: string, client_name?: string, phone?: string }) => {
+      if (authUser?.role === 'guest') {
+        toast.info("Modo Demo: El turno no fue actualizado realmente.");
+        return { success: true };
+      }
       const res = await fetch(`/api/appointments?id=${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -164,6 +194,10 @@ export default function Dashboard() {
 
   const saveService = useMutation({
     mutationFn: async (svc: Partial<Service>) => {
+      if (authUser?.role === 'guest') {
+        toast.info("Modo Demo: Los cambios en el servicio no se guardaron realmente.");
+        return { success: true };
+      }
       const method = svc.id ? 'PUT' : 'POST';
       const res = await fetch('/api/services', {
         method,
@@ -182,6 +216,10 @@ export default function Dashboard() {
 
   const createAppointment = useMutation({
     mutationFn: async ({ lead_id, date_time, service_type }: { lead_id: string, date_time: string, service_type: string }) => {
+      if (authUser?.role === 'guest') {
+        toast.info("Modo Demo: El turno no se creó realmente.");
+        return { success: true };
+      }
       const res = await fetch('/api/appointments', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -203,6 +241,10 @@ export default function Dashboard() {
 
   const deleteService = useMutation({
     mutationFn: async (id: string) => {
+      if (authUser?.role === 'guest') {
+        toast.info("Modo Demo: El servicio no fue eliminado realmente.");
+        return { success: true };
+      }
       const res = await fetch(`/api/services?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete');
       return res.json();
@@ -214,6 +256,10 @@ export default function Dashboard() {
 
   const deleteLead = useMutation({
     mutationFn: async (id: string) => {
+      if (authUser?.role === 'guest') {
+        toast.info("Modo Demo: El prospecto no fue eliminado realmente.");
+        return { success: true };
+      }
       const res = await fetch(`/api/leads?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete lead');
       return res.json();
@@ -225,6 +271,10 @@ export default function Dashboard() {
 
   const deleteAppointment = useMutation({
     mutationFn: async (id: string) => {
+      if (authUser?.role === 'guest') {
+        toast.info("Modo Demo: El turno no fue eliminado realmente.");
+        return { success: true };
+      }
       // Real hard delete or just update status? API currently does soft delete in DELETE handler.
       const res = await fetch(`/api/appointments?id=${id}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to delete appointment');
@@ -237,6 +287,10 @@ export default function Dashboard() {
 
   const reorderServices = useMutation({
     mutationFn: async (updated: { id: string, sort_order: number }[]) => {
+      if (authUser?.role === 'guest') {
+        toast.info("Modo Demo: El orden no fue guardado realmente.");
+        return { success: true };
+      }
       const res = await fetch('/api/services', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -249,6 +303,41 @@ export default function Dashboard() {
       queryClient.invalidateQueries({ queryKey: ['services'] });
     }
   });
+
+  const toggleBotMutation = useMutation({
+    mutationFn: async ({ leadId, isBotEnabled }: { leadId: string, isBotEnabled: boolean }) => {
+      if (authUser?.role === 'guest') {
+        toast.info("Modo Demo: El estado del bot no cambió realmente.");
+        return { success: true };
+      }
+      const res = await fetch('/api/leads/toggle-bot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leadId, isBotEnabled })
+      });
+      if (!res.ok) throw new Error('Failed to toggle bot');
+      return res.json();
+    },
+    onMutate: async ({ leadId, isBotEnabled }) => {
+      await queryClient.cancelQueries({ queryKey: ['dashboard'] });
+      const previous = queryClient.getQueryData(['dashboard']);
+      queryClient.setQueryData(['dashboard'], (old: { leads: Lead[]; appointments: Appointment[] } | undefined) => {
+        if (!old) return old;
+        return {
+          ...old,
+          leads: old.leads.map((l: Lead) => l.id === leadId ? { ...l, is_bot_enabled: isBotEnabled } : l)
+        };
+      });
+      return { previous };
+    },
+    onError: (err, variables, context) => {
+      queryClient.setQueryData(['dashboard'], context?.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    }
+  });
+
 
   const handleLogout = async () => {
     await fetch('/api/auth', { method: 'DELETE' });
@@ -314,8 +403,8 @@ export default function Dashboard() {
 
   const filteredAppointments = useMemo(() => {
     const target = new Date();
-    // Only show scheduled/confirmed
-    const activeAppts = appointments.filter(a => a.status === 'scheduled' || a.status === 'confirmed');
+    // Only show scheduled/confirmed/pending
+    const activeAppts = appointments.filter(a => a.status === 'scheduled' || a.status === 'confirmed' || a.status === 'pending');
 
     if (dateFilter === 'tomorrow') {
       target.setDate(target.getDate() + 1);
@@ -334,6 +423,7 @@ export default function Dashboard() {
   }, [appointments, dateFilter]);
 
   const loading = dashLoading || servLoading;
+  const fetching = dashFetching || servFetching;
 
   if (loading && !dashData) {
     return (
@@ -366,6 +456,14 @@ export default function Dashboard() {
       </div>
 
       <div className="relative z-10">
+        {authUser?.role === 'guest' && (
+          <div className="bg-gold/10 border-b border-gold/20 py-2 px-6 flex items-center justify-center gap-3 backdrop-blur-md sticky top-0 z-[60]">
+            <AlertTriangle className="w-4 h-4 text-gold animate-pulse" />
+            <p className="text-[11px] font-sans font-medium text-gold uppercase tracking-[0.1em]">
+              Modo Demo Activo: Estás en una sesión de solo lectura. Los cambios no se guardarán en la base de datos real.
+            </p>
+          </div>
+        )}
         <header className="flex flex-col md:flex-row items-center justify-between px-6 py-5 border-b border-cream/5 gap-4 backdrop-blur-xl bg-noir/50 sticky top-0">
           <div className="flex items-center gap-4">
             <button
@@ -405,11 +503,14 @@ export default function Dashboard() {
 
           <div className="flex items-center gap-3">
             <button
-              onClick={() => queryClient.invalidateQueries()}
-              disabled={loading}
+              onClick={() => {
+                queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+                queryClient.invalidateQueries({ queryKey: ['services'] });
+              }}
+              disabled={fetching}
               className="flex items-center gap-2 text-[10px] uppercase tracking-widest text-cream/40 hover:text-gold transition-colors border border-cream/5 rounded-full px-4 py-2 hover:bg-gold/5"
             >
-              <RefreshCw className={`w-3 h-3 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`w-3 h-3 ${fetching ? "animate-spin" : ""}`} />
               <span className="mt-0.5">Actualizar</span>
             </button>
             <button
@@ -456,8 +557,8 @@ export default function Dashboard() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 shadow-2xl overflow-hidden">
-                <Table>
+              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 shadow-2xl overflow-x-auto custom-scrollbar">
+                <Table className="min-w-[900px]">
                   <TableHeader>
                     <TableRow className="border-b border-cream/5 hover:bg-transparent">
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Cliente</TableHead>
@@ -476,7 +577,7 @@ export default function Dashboard() {
                     ) : filteredAppointments.map((a) => {
                       const hasPhone = !!a.phone;
                       return (
-                        <TableRow key={a.id} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
+                        <TableRow key={a.id} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group px-4">
                           <TableCell className="px-6 py-4">
                             <span className="text-cream font-serif font-bold text-base">{a.client_name || "Cliente"}</span>
                           </TableCell>
@@ -585,27 +686,28 @@ export default function Dashboard() {
                   </h3>
                 </div>
               </div>
-              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 shadow-2xl overflow-hidden">
-                <Table>
+              <div className="rounded-2xl border border-cream/5 bg-noir-light/20 shadow-2xl overflow-x-auto custom-scrollbar">
+                <Table className="min-w-[1000px]">
                   <TableHeader>
                     <TableRow className="border-b border-cream/5 hover:bg-transparent">
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Prospecto</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Contacto</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Interés</TableHead>
+                      <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Estado Bot</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6">Última Interacción</TableHead>
                       <TableHead className="text-[10px] text-cream/30 uppercase tracking-[0.2em] font-sans py-4 px-6 text-right">Gestión</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loading ? (
-                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-cream/20 font-sans italic">Analizando interacciones...</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="py-20 text-center text-cream/20 font-sans italic">Analizando interacciones...</TableCell></TableRow>
                     ) : unbookedLeads.length === 0 ? (
-                      <TableRow><TableCell colSpan={5} className="py-20 text-center text-cream/20 font-sans italic">No hay prospectos esperando turno.</TableCell></TableRow>
+                      <TableRow><TableCell colSpan={6} className="py-20 text-center text-cream/20 font-sans italic">No hay prospectos esperando turno.</TableCell></TableRow>
                     ) : unbookedLeads.map((l, idx) => {
                       const leadPhone = l.contact_info?.phone;
                       const hasLeadPhone = !!leadPhone;
                       return (
-                        <TableRow key={l.id || idx} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group">
+                        <TableRow key={l.id || idx} className="border-b border-cream/5 hover:bg-cream/[0.02] transition-colors group px-4">
                           <TableCell className="px-6 py-4">
                             <span className="text-cream font-serif font-bold text-base">{l.client_name}</span>
                           </TableCell>
@@ -630,6 +732,21 @@ export default function Dashboard() {
                                 }`}>
                                 {l.status === "qualified" ? "Alta" : l.status === "contacted" ? "Media" : "Evaluando"}
                               </Badge>
+                            </div>
+                          </TableCell>
+                          <TableCell className="px-6 py-4">
+                            <div className="flex items-center gap-2">
+                              {l.is_bot_enabled !== false ? (
+                                <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[9px] uppercase tracking-wider">Activo</Badge>
+                              ) : (
+                                <Badge className="bg-rose-500/10 text-rose border-rose-500/20 text-[9px] uppercase tracking-wider">Pausado</Badge>
+                              )}
+                              <button
+                                onClick={() => toggleBotMutation.mutate({ leadId: l.id, isBotEnabled: l.is_bot_enabled === false })}
+                                className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${l.is_bot_enabled !== false ? 'bg-gold' : 'bg-cream/10'}`}
+                              >
+                                <span className={`pointer-events-none block h-4 w-4 rounded-full bg-noir shadow-lg ring-0 transition-transform ${l.is_bot_enabled !== false ? 'translate-x-4' : 'translate-x-0'}`} />
+                              </button>
                             </div>
                           </TableCell>
                           <TableCell className="px-6 py-4 text-cream/80 text-sm font-sans font-medium">

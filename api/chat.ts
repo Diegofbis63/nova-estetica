@@ -1,6 +1,6 @@
 export const config = { runtime: 'edge' };
 
-import { Pool } from '@neondatabase/serverless';
+import { neon } from '@neondatabase/serverless';
 
 const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -32,34 +32,43 @@ function sseStream(text: string): Response {
 // ─── Sophisticated State Extraction ──────────────────────────────────────────
 const normalizeText = (text: string) => text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9\s]/g, "");
 
-function findBestServiceMatch(userInput: string, services: Array<{ title: string; price: number }>): string | null {
+function findMultipleServiceMatches(userInput: string, services: Array<{ title: string; price: number }>): string[] {
     const normalizedInput = normalizeText(userInput);
-    let bestMatch: string | null = null;
-    let highestScore = 0;
+    const results: Array<{ title: string, score: number }> = [];
 
     services.forEach(service => {
-        const serviceName = normalizeText(service.title);
-        const words = serviceName.split(/\s+/).filter(w => w.length > 2); // filter short words
+        const fullServiceName = normalizeText(service.title);
         let score = 0;
 
+        if (normalizedInput.includes(fullServiceName)) {
+            score += 10;
+        }
+
+        const words = fullServiceName.split(/\s+/).filter(w => w.length > 3);
         words.forEach(word => {
-            if (normalizedInput.includes(word)) score += 1;
+            const regex = new RegExp(`\\b${word}\\b`, 'i');
+            if (regex.test(normalizedInput)) {
+                score += 3;
+            } else if (normalizedInput.includes(word)) {
+                score += 0.5;
+            }
         });
 
-        if (score > highestScore) {
-            highestScore = score;
-            bestMatch = service.title;
+        if (score >= 2.5) {
+            results.push({ title: service.title, score });
         }
     });
 
-    return highestScore > 0 ? bestMatch : null;
+    const uniqueMatches = Array.from(new Set(results.sort((a, b) => b.score - a.score).map(r => r.title)));
+    return uniqueMatches;
 }
 
 interface ConvState {
     clientName: string | null;
     clientPhone: string | null;
     interestedService: string | null;
-    stage: 'greeting' | 'service_selection' | 'name_collection' | 'phone_collection' | 'availability_proposal' | 'done';
+    detectedServices: string[];
+    stage: 'greeting' | 'service_selection' | 'service_clarification' | 'name_collection' | 'phone_collection' | 'availability_proposal' | 'done';
     pendingDate: string | null;
     pendingTime: string | null;
     isAskingAlternatives: boolean;
@@ -68,6 +77,8 @@ interface ConvState {
     isAmbiguous: boolean;
     rejectedDates: string[];
     requestedTime: string | null;
+    requestedAllOptions: boolean;
+    lastMessageChangedService: boolean;
 }
 
 function extractState(messages: Array<{ role: string; content: string }>, services: Array<{ title: string; price: number }>): ConvState {
@@ -75,6 +86,7 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
         clientName: null,
         clientPhone: null,
         interestedService: null,
+        detectedServices: [],
         stage: 'greeting',
         pendingDate: null,
         pendingTime: null,
@@ -83,174 +95,123 @@ function extractState(messages: Array<{ role: string; content: string }>, servic
         previouslySuggestedCount: 0,
         isAmbiguous: false,
         rejectedDates: [],
-        requestedTime: null
+        requestedTime: null,
+        requestedAllOptions: false,
+        lastMessageChangedService: false
     };
 
     if (messages.length === 0) return state;
 
-    let lastAssistantAsked = '';
-    // Look at the last assistant message to see what we are expecting
-    const assistantMsgs = messages.filter(m => m.role === 'assistant');
-    if (assistantMsgs.length > 0) {
-        const lastBotMsg = assistantMsgs[assistantMsgs.length - 1].content.toLowerCase();
-        if (lastBotMsg.includes("tu nombre") || lastBotMsg.includes("gusto de hablar")) lastAssistantAsked = 'name';
-        else if (lastBotMsg.includes("whatsapp") || lastBotMsg.includes("teléfono")) lastAssistantAsked = 'phone';
-        else if (lastBotMsg.includes("servicio") || lastBotMsg.includes("tratamiento")) lastAssistantAsked = 'service';
-    }
+    let currentBotAsked: 'name' | 'phone' | 'service' | 'availability' | null = null;
 
     for (let i = 0; i < messages.length; i++) {
         const msg = messages[i];
+
+        if (msg.role === 'assistant') {
+            const botText = normalizeText(msg.content);
+            if (botText.includes("tu nombre") || botText.includes("gusto de hablar")) currentBotAsked = 'name';
+            else if (botText.includes("whatsapp") || botText.includes("telefono") || botText.includes("este numero") || botText.includes("brindarme algun otro")) currentBotAsked = 'phone';
+            else if (botText.includes("servicio") || botText.includes("tratamiento") || botText.includes("opciones son")) currentBotAsked = 'service';
+            else if (botText.includes("horario disponible") || botText.includes("serviria") || botText.includes("parece el") || botText.includes("proximo horario")) {
+                currentBotAsked = 'availability';
+                state.previouslySuggestedCount++;
+                const dateMatch = msg.content.match(/(\d{4})-(\d{2})-(\d{2})/);
+                const timeMatch = msg.content.match(/(\d{1,2}):(\d{2})/);
+                if (dateMatch) state.pendingDate = dateMatch[0];
+                if (timeMatch) state.pendingTime = timeMatch[0].padStart(5, '0');
+            }
+            continue;
+        }
+
         if (msg.role === 'user') {
             const text = msg.content;
+            const normalizedTextVal = normalizeText(text);
+            const isLastMessage = i === messages.length - 1;
 
-            // 1. Extract Service
-            if (!state.interestedService) {
-                const svc = findBestServiceMatch(text, services);
-                if (svc) {
-                    state.interestedService = svc;
-                    // If we found the service in THIS message, we stop here for this message processing
-                    // to avoid extracting "quiero turno para x" as a name in the same turn.
-                    continue;
+            // Service detection
+            const matches = findMultipleServiceMatches(text, services);
+            if (matches.length === 1) {
+                const newService = matches[0];
+                if (isLastMessage && state.interestedService && state.interestedService !== newService) {
+                    state.lastMessageChangedService = true;
                 }
+                state.interestedService = newService;
+                state.detectedServices = [];
+            } else if (matches.length > 1) {
+                state.detectedServices = matches;
+                state.interestedService = null;
             }
 
-            // 2. Extract Name
-            // Only extract if we have a service but no name
+            // Name collection
             if (state.interestedService && !state.clientName) {
-                const nameKeywords = /^(soy|me llamo|mi nombre es)\s+/i;
-                const hasNameKeyword = nameKeywords.test(text);
+                const nameKeywords = /\b(soy|me llamo|mi nombre es|nombre es|nombre:)\s*/i;
+                const isNamePhrase = /\b(es mi nombre|soy yo|me llamo)\b/i.test(normalizedTextVal);
 
-                // Only extract if bot asked for name OR user used keyword
-                // AND ensure it doesn't look like a service request
-                if (lastAssistantAsked === 'name' || hasNameKeyword) {
+                if (currentBotAsked === 'name' || nameKeywords.test(text) || isNamePhrase) {
                     if (!/\d/.test(text)) {
-                        const cleaned = text.replace(nameKeywords, '').replace(/^(hola\s+)?/i, '').trim();
+                        const cleaned = text.replace(nameKeywords, '')
+                            .replace(/\bes mi nombre\b/i, '')
+                            .replace(/^(hola\s+)?/i, '')
+                            .trim();
 
-                        // Strict blacklist from user request
-                        const blacklist = [/hola/i, /quiero/i, /turno/i, /estetica/i, /servicio/i, /tratamiento/i];
-                        const isBlacklisted = blacklist.some(regex => regex.test(cleaned));
-
-                        const isCommonWord = /^(si|sí|no|gracias|ok|dale|perfecto|hola)$/i.test(cleaned);
-                        const isSentence = cleaned.split(' ').length > 4;
-                        const looksLikeService = services.some(s => normalizeText(cleaned).includes(normalizeText(s.title)));
-
-                        if (cleaned.length >= 3 && !isBlacklisted && !isCommonWord && !isSentence && !looksLikeService) {
-                            state.clientName = cleaned.replace(/\b\w/g, l => l.toUpperCase());
-                            if (!hasNameKeyword) continue; // consume message
+                        // Limit to reasonable full names (usually 1-4 words)
+                        const wordCount = cleaned.split(/\s+/).length;
+                        if (cleaned.length >= 2 && wordCount <= 4 && !/^(si|no|hola|quiero|turno|precio|info)$/i.test(cleaned)) {
+                            state.clientName = cleaned.split(/\s+/).map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ');
                         }
                     }
                 }
             }
 
-            // 3. Extract Phone
+            // Phone collection - FIXED: Persistent through history
             if (state.interestedService && state.clientName && !state.clientPhone) {
-                const phoneMatch = text.match(/(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
-                if (phoneMatch && phoneMatch[0].replace(/\D/g, '').length >= 8) {
-                    state.clientPhone = phoneMatch[0].trim();
+                const isConfirmation = /\b(este mismo|este|con este|si|dale|ok|usar este|asimismo|asi es|el mismo)\b/i.test(normalizedTextVal);
+                if (currentBotAsked === 'phone' && (isConfirmation || normalizedTextVal === 'si')) {
+                    state.clientPhone = 'CONFIRMED_CURRENT';
+                } else {
+                    const phoneMatch = text.match(/(?:\+?\d{1,3}[\s-]?)?\(?\d{2,4}\)?[\s-]?\d{3,4}[\s-]?\d{3,4}/);
+                    if (phoneMatch && phoneMatch[0].replace(/\D/g, '').length >= 8) {
+                        state.clientPhone = phoneMatch[0].trim();
+                    }
                 }
             }
 
-            // 4. Extract Preferred Slot (if user mentions a time/date)
+            // Scheduling logic
             if (state.interestedService && state.clientName && state.clientPhone) {
-                // Time detection: matches 13:00, 13hs, 13 hs, a las 13
+                // Requested time
                 const timeMatch = text.match(/(\d{1,2})[:h\s]*(\d{2})?hs?/i);
                 if (timeMatch) {
                     const hours = timeMatch[1].padStart(2, '0');
                     const mins = timeMatch[2] || '00';
                     state.requestedTime = `${hours}:${mins}`;
                 }
-            }
 
-            // 5. Detect Day Rejection
-            const rejectionKeywords = /no\s+(puedo|sirve|va|es\s+posible).*?(ese\s+dia|el\s+dia|hoy|mañana|lunes|martes|miercoles|jueves|viernes|sabado|domingo)/i;
-            const looseRejection = /ese\s+dia\s+no/i;
-            if (rejectionKeywords.test(text) || looseRejection.test(text)) {
-                // If the bot just suggested a date, we add it to rejections
-                if (state.pendingDate) {
-                    state.rejectedDates.push(state.pendingDate);
+                // Requested all options
+                if (/\b(todos|todas|opciones|lista|lista de turnos|lista de horarios|cuales hay|que horarios tenes)\b/i.test(normalizedTextVal)) {
+                    state.requestedAllOptions = true;
                 }
 
-                // Also check for specific day mentions in the rejection
-                const daysArr = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
-                for (const d of daysArr) {
-                    if (text.toLowerCase().includes(d)) {
-                        const now = new Date();
-                        const targetIdx = daysArr.indexOf(d);
-                        const currentIdx = now.getDay() === 0 ? 6 : now.getDay() - 1;
-                        let diff = targetIdx - currentIdx;
-                        if (diff <= 0) diff += 7;
-                        const target = new Date(now);
-                        target.setDate(now.getDate() + diff);
-                        state.rejectedDates.push(target.toISOString().split('T')[0]);
-                    }
+                // Date requests (future)
+                if (normalizedTextVal.includes("mes que viene") || normalizedTextVal.includes("proximo mes")) {
+                    const nextMonth = new Date();
+                    nextMonth.setMonth(nextMonth.getMonth() + 1);
+                    nextMonth.setDate(1);
+                    state.targetDate = nextMonth.toISOString().split('T')[0];
+                }
+
+                // Rejections / Alternatives
+                const userRejectsStrict = /\b(no|otro|cambiar|no puedo|busca|otra|me sirve|no me sirve|diferente|distinto|tenes otro|hay otro)\b/i.test(normalizedTextVal);
+                if (userRejectsStrict || state.requestedTime || state.requestedAllOptions) {
+                    state.isAskingAlternatives = true;
+                    if (state.pendingDate) state.rejectedDates.push(state.pendingDate);
                 }
             }
         }
     }
 
-    // Appointment Parsing from History & Counting Suggestions
-    if (assistantMsgs.length > 0) {
-        // Find ALL previous date/time suggestions in history to know 'where we are'
-        assistantMsgs.forEach(m => {
-            const lowMsg = m.content.toLowerCase();
-            if (lowMsg.includes("horario disponible") || lowMsg.includes("serviría") || lowMsg.includes("te sirve quizás") || lowMsg.includes("parece el") || lowMsg.includes("otros horarios")) {
-                state.previouslySuggestedCount++;
-            }
-        });
-
-        const lastBotMsg = assistantMsgs[assistantMsgs.length - 1].content;
-        const dateMatch = lastBotMsg.match(/(\d{4})-(\d{2})-(\d{2})/);
-        const timeMatch = lastBotMsg.match(/(\d{1,2}):(\d{2})/);
-        if (dateMatch) state.pendingDate = dateMatch[0];
-        if (timeMatch && !state.pendingTime) state.pendingTime = timeMatch[0].padStart(5, '0');
-    }
-
-    // Intent detection for alternatives
-    const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content.toLowerCase() || "";
-
-    // Day detection
-    const daysArr = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
-    for (const d of daysArr) {
-        if (lastUserMsg.includes(d)) {
-            const now = new Date();
-            const targetIdx = daysArr.indexOf(d);
-            const currentIdx = now.getDay() === 0 ? 6 : now.getDay() - 1; // map to 0-6 starting lunes
-            let diff = targetIdx - currentIdx;
-            if (diff <= 0) diff += 7;
-            const target = new Date(now);
-            target.setDate(now.getDate() + diff);
-            state.targetDate = target.toISOString().split('T')[0];
-            state.isAskingAlternatives = true;
-            break;
-        }
-    }
-    if (lastUserMsg.includes("mañana")) {
-        const target = new Date();
-        target.setDate(target.getDate() + 1);
-        state.targetDate = target.toISOString().split('T')[0];
-        state.isAskingAlternatives = true;
-    }
-
-    const userConfirmsStrict = /\b(si|sí|dale|ok|perfecto|bien|confirmar|confirmado)\b/i.test(lastUserMsg);
-    const userRejectsStrict = /\b(no|otro|cambiar|no puedo|busca|otra|me sirve)\b/i.test(lastUserMsg) || lastUserMsg.includes("no me sirve");
-
-    if (userRejectsStrict) {
-        state.isAskingAlternatives = true;
-        state.isAmbiguous = false;
-    } else if (userConfirmsStrict) {
-        state.isAskingAlternatives = false;
-        state.isAmbiguous = false;
-    } else if (state.stage === 'availability_proposal') {
-        // If it's the proposal stage and we don't see clear YES or clear NO, it's ambiguous
-        state.isAmbiguous = /turno|hora|momento|ver/i.test(lastUserMsg);
-    }
-
-    if (!state.isAskingAlternatives && !userConfirmsStrict && !state.isAmbiguous) {
-        state.isAskingAlternatives = /otro|horario|disponible|dia|puedo|cambiar|opciones|turno|momento|proximo/i.test(lastUserMsg) || state.requestedTime !== null;
-    }
-
-    // Stage update
-    if (messages.length <= 1) state.stage = 'greeting';
+    // Final stage determination
+    if (messages.length === 0) state.stage = 'greeting';
+    else if (state.detectedServices.length > 1) state.stage = 'service_clarification';
     else if (!state.interestedService) state.stage = 'service_selection';
     else if (!state.clientName) state.stage = 'name_collection';
     else if (!state.clientPhone) state.stage = 'phone_collection';
@@ -263,130 +224,243 @@ function generateResponse(
     state: ConvState,
     services: Array<{ title: string; price: number }>,
     availableSlots: Array<{ date: string, time: string }>,
-    isBookingConfirmed: boolean
+    isBookingConfirmed: boolean,
+    isFirstResponse: boolean = false,
+    isFromWhatsApp: boolean = false,
+    messages: any[] = []
 ): string {
     if (isBookingConfirmed) {
-        return `¡Excelente! 🎉 He confirmado tu turno para **${state.interestedService}** el día **${state.pendingDate}** a las **${state.pendingTime}hs**. Estaremos esperándote en NOVA Estética para brindarte una experiencia única de lujo.\n\nQue tengas un día maravilloso. ✨ ¡Adiós!`;
+        return `¡Excelente! 🎉 He confirmado tu turno para *${state.interestedService}* el día *${state.pendingDate}* a las *${state.pendingTime}hs*. Estaremos esperándote en NOVA Estética para brindarte una experiencia única de lujo.\n\nQue tengas un día maravilloso. ✨ ¡Adiós!`;
+    }
+
+    const welcomeHeader = isFirstResponse ? "¡Hola! Bienvenido a *NOVA Estética*. 😊 " : "";
+
+    if (state.lastMessageChangedService && state.interestedService) {
+        const nextMissing = !state.clientName
+            ? "Antes de ver la agenda, ¿con quién tengo el gusto de hablar?"
+            : (isFromWhatsApp ? `Bien, *${state.clientName}*. Para poder enviarte los detalles de tu turno, ¿te registro con este número o con algún otro?` : `Bien, *${state.clientName}*. Para poder enviarte los detalles de tu turno, indícame tu número de WhatsApp.`);
+        return `¡Perfecto! Cambiamos a *${state.interestedService}*. ✨ ${nextMissing}`;
     }
 
     switch (state.stage) {
-        case 'greeting':
-            return "¡Hola! Bienvenido a **NOVA Estética**. 😊 Soy tu asistente virtual y estoy aquí para ayudarte a lucir y sentirte increíble.\n\n¿Te gustaría agendar un turno para uno de nuestros tratamientos exclusivos hoy?";
-
-        case 'service_selection': {
-            const svcList = services.map(s => `• **${s.title}**`).join('\n');
-            return `¡Me encantaría ayudarte! ✨ ¿Qué tratamiento o servicio estás buscando? Nuestras opciones son:\n\n${svcList}\n\nDime cuál prefieres para comenzar.`;
+        case 'greeting': {
+            const svcList = services.map((s: { title: string; price: number }) => `• *${s.title}*`).join('\n');
+            const intro = isFirstResponse ? `${welcomeHeader}Soy tu asistente virtual. ✨ ¿Qué tratamiento estás buscando?` : "¡Me encantaría ayudarte! ✨ ¿Qué tratamiento estás buscando?";
+            return `${intro} Nuestras opciones son:\n\n${svcList}\n\nDime cuál prefieres para comenzar.`;
         }
-
-        case 'name_collection':
-            return `¡Excelente elección! El **${state.interestedService}** es uno de nuestros tratamientos estrella. ✨ Antes de ver la agenda, ¿con quién tengo el gusto de hablar?`;
-
-        case 'phone_collection':
-            return `¡Un gusto conocerte, **${state.clientName}**! 😊\n\nPara poder enviarte los detalles de tu turno y registrar tu perfil, indícame tu número de WhatsApp.`;
-
-        case 'availability_proposal':
-            if (state.isAmbiguous) {
-                return `Entiendo, **${state.clientName}**. ✨ ¿Te gustaría confirmar este horario o prefieres que busquemos otra opción?`;
+        case 'service_selection': {
+            const svcList = services.map(s => `• *${s.title}*`).join('\n');
+            const intro = isFirstResponse ? `${welcomeHeader}Soy tu asistente virtual. ✨ ¿Qué tratamiento estás buscando?` : "¡Me encantaría ayudarte! ✨ ¿Qué tratamiento estás buscando?";
+            return `${intro} Nuestras opciones son:\n\n${svcList}\n\nDime cuál prefieres para comenzar.`;
+        }
+        case 'service_clarification': {
+            const list = state.detectedServices.join(' y ');
+            return `${welcomeHeader}¡Hola! Veo que te interesan varios de nuestros tratamientos: *${list}*. 😊\n\n¿Te gustaría que agendemos un turno para ambos o preferís empezar con uno en particular?`;
+        }
+        case 'name_collection': {
+            const intro = isFirstResponse ? `${welcomeHeader}¡Excelente elección! El *${state.interestedService}* es uno de nuestros tratamientos estrella. ✨` : `¡Excelente elección! El *${state.interestedService}* es uno de nuestros tratamientos estrella. ✨`;
+            return `${intro} Antes de ver la agenda, ¿con quién tengo el gusto de hablar?`;
+        }
+        case 'phone_collection': {
+            const assistantMsgs = messages.filter(m => m.role === 'assistant');
+            const alreadyGreeted = assistantMsgs.some(m => m.content.includes("Un gusto conocerte") || m.content.includes("gusto de hablar"));
+            const confirmName = (state.clientName && !alreadyGreeted) ? `¡Un gusto conocerte, *${state.clientName}*! 😊\n\n` : "";
+            if (isFromWhatsApp) {
+                return `${confirmName}Para poder enviarte los detalles de tu turno y registrar tu perfil, ¿te registro con este número o preferís brindarme algún otro?`;
             }
-
+            return `${confirmName}Para poder enviarte los detalles de tu turno y registrar tu perfil, indícame tu número de WhatsApp.`;
+        }
+        case 'availability_proposal':
+            if (state.requestedAllOptions && availableSlots.length > 0) {
+                const options = availableSlots.slice(0, 5).map(s => `• *${s.date}* a las *${s.time}hs*`).join('\n');
+                return `¡Por supuesto, *${state.clientName}*! Aquí tienes las próximas opciones disponibles para *${state.interestedService}*:\n\n${options}\n\n¿Cuál de estos te queda mejor? 😊`;
+            }
             if (availableSlots.length > 0) {
-                const isNthSuggestion = state.previouslySuggestedCount > 0;
                 const slot = availableSlots[0];
-
-                // Specific requested time logic
                 if (state.requestedTime) {
                     const isMatch = slot.time.startsWith(state.requestedTime.split(':')[0]);
-                    if (isMatch) {
-                        return `¡Buenas noticias, **${state.clientName}**! 😊 Tengo disponible el **${slot.date}** a las **${slot.time}hs**, tal como pediste. ✨ ¿Te gustaría confirmarlo?`;
-                    } else {
-                        return `Lo siento, a las **${state.requestedTime}hs** no tengo lugar disponible. 🗓️ Pero tengo disponible el **${slot.date}** a las **${slot.time}hs**. ¿Te serviría?`;
-                    }
+                    if (isMatch) return `¡Buenas noticias! 😊 Tengo disponible el *${slot.date}* a las *${slot.time}hs*, tal como pediste. ✨ ¿Te gustaría confirmarlo?`;
+                    else return `Lo siento, a las *${state.requestedTime}hs* no tengo lugar disponible. 🗓️ Pero tengo disponible el *${slot.date}* a las *${slot.time}hs*. ¿Te serviría?`;
                 }
-
-                // If user rejected a day
-                if (state.rejectedDates.length > 0 && state.isAskingAlternatives) {
-                    return `Comprendido, buscamos otro día. 🗓️ ¿Qué te parece el **${slot.date}** a las **${slot.time}hs**? ✨`;
+                if (state.isAskingAlternatives) {
+                    return `¡Entendido! Busquemos otra opción. 😊 ¿Qué te parece el *${slot.date}* a las *${slot.time}hs*? ✨`;
                 }
+                const alreadyProposed = messages.some(m => m.role === 'assistant' && (m.content.includes("horario disponible") || m.content.includes("proximo horario")));
+                if (alreadyProposed) return `¿Te gustaría confirmar el turno para el *${slot.date}* a las *${slot.time}hs* o prefieres que sigamos buscando? 🗓️`;
 
-                if (state.isAskingAlternatives && isNthSuggestion) {
-                    return `¡Entendido! No hay problema. 😊 ¿Te sirve quizás el **${slot.date}** a las **${slot.time}hs**? ✨`;
-                }
-
-                if (isNthSuggestion) {
-                    return `¿Qué te parece el **${slot.date}** a las **${slot.time}hs**? ¿Te queda mejor este horario? 🗓️`;
-                }
-
-                return `¡Perfecto, ${state.clientName}! Ya registré tus datos provisoriamente. 🌟\n\nPara **${state.interestedService}**, el próximo horario disponible que tengo es el **${slot.date} a las ${slot.time}hs**. 🗓️\n\n¿Te queda bien este horario o prefieres buscar otro? (Responde "sí" para confirmar)`;
+                return `¡Perfecto, *${state.clientName}*! Ya registré tus datos provisoriamente. 🌟\n\nPara *${state.interestedService}*, el próximo horario disponible que tengo es el *${slot.date} a las ${slot.time}hs*. 🗓️\n\n¿Te queda bien este horario o prefieres buscar otro? (Responde "sí" para confirmar)`;
             }
-            return "Por el momento no tengo más espacios esta semana. 🗓️ ¿Te gustaría dejar tu contacto para que te avisemos si alguien cancela o se libera algún lugar? 😊";
-
+            return "Por el momento no tengo más espacios esta semana. 🗓️ ¿Te gustaría que busquemos para más adelante o que te avise si se libera un lugar? 😊";
         default:
             return "Entiendo. ¿Hay algo más en lo que pueda asistirte para que tu experiencia en NOVA sea perfecta? ✨";
     }
 }
 
-// ─── Main handler ─────────────────────────────────────────────────────────────
+
+function formatForWhatsApp(text: string): string {
+    return text.replace(/\*\*(.*?)\*\*/g, '*$1*').replace(/\*(.*?)\*/g, '_$1_').replace(/<br\s*\/?>/gi, '\n').trim();
+}
+
+interface LeadStatusResult {
+    is_bot_enabled: boolean;
+}
+
+interface ServiceResult {
+    title: string;
+    price: number;
+}
+
+interface ChatHistoryResult {
+    chat_history: Array<{ role: string; content: string }>;
+}
+
+interface AppointmentResult {
+    date_time: string;
+}
+
+interface LeadIdResult {
+    id: string;
+}
+
 export default async function handler(req: Request) {
     if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
-    let pool: Pool | null = null;
+    let userId: string | null = null;
+    const DEFAULT_ORG_ID = '00000000-0000-0000-0000-000000000000';
+    const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
+
+    const returnFallback = (errorMsg: string) => {
+        console.error("DEBUG - API ERROR:", errorMsg);
+        const fallbackText = "Hola! ✨ Disculpa, estoy experimentando una pequeña intermitencia técnica. Pero no te preocupes, ya estoy trabajando para solucionarlo. Si quieres, prueba escribirme de nuevo en unos momentos. 😊";
+        return new Response(JSON.stringify({ responseText: fallbackText, rawResponse: fallbackText, error: true, status: "success_fallback_emergency" }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    };
+
     try {
-        const { messages } = await req.json() as { messages: Array<{ role: string; content: string }> };
-        const connectionString = process.env.DATABASE_URL || process.env.POSTGRES_URL;
-        if (!connectionString) throw new Error("Missing connection string");
-        pool = new Pool({ connectionString });
+        let body;
+        try { body = await req.json(); } catch (jsonErr) { return new Response(JSON.stringify({ error: "Invalid JSON format" }), { status: 400, headers: corsHeaders }); }
 
-        // Fetch services
-        const { rows: services } = await pool.query<{ title: string; price: number }>(
-            'SELECT title, price FROM services WHERE active = true ORDER BY sort_order ASC, created_at ASC'
-        );
+        userId = body.userId;
+        const incomingMessage = body.message || "";
+        let messages: Array<{ role: string; content: string }> = body.messages || [];
+        let isFirstInteraction = false;
 
+        if (userId && typeof userId === 'string') {
+            userId = userId.split('@')[0].replace(/[^0-9]/g, '');
+        }
+
+        if (!connectionString) throw new Error("Missing DATABASE_URL configuration");
+        const sql = neon(connectionString);
+
+        // ─── CHECK BOT STATUS FIRST ───
+        if (userId) {
+            // Robust phone normalization: remove all non-digits from both sides for comparison
+            const leadStatus = await sql`
+                SELECT is_bot_enabled 
+                FROM leads 
+                WHERE regexp_replace(contact_info->>'phone', '\\D', '', 'g') = ${userId}
+                   OR regexp_replace(contact_info->>'phone', '\\D', '', 'g') LIKE ${'%' + userId}
+                   OR ${userId.slice(-10)} = regexp_replace(contact_info->>'phone', '\\D', '', 'g')
+                LIMIT 1
+            ` as LeadStatusResult[];
+            if (leadStatus.length > 0 && leadStatus[0].is_bot_enabled === false) {
+                return new Response(JSON.stringify({ botPaused: true, responseText: "", status: "paused" }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+            }
+        }
+
+        if (userId && !messages.length && incomingMessage) {
+            isFirstInteraction = true;
+            try {
+                const historyRes = await sql`SELECT chat_history FROM leads WHERE regexp_replace(contact_info->>'phone', '\\D', '', 'g') = ${userId} LIMIT 1` as ChatHistoryResult[];
+                if (historyRes.length > 0 && historyRes[0].chat_history) {
+                    messages = historyRes[0].chat_history;
+                }
+            } catch (historyErr) { console.error("History fetch error:", historyErr); }
+            messages.push({ role: 'user', content: incomingMessage });
+        }
+
+        // ─── WEB CHAT INITIALIZATION ───
+        if (messages.length === 0 && !incomingMessage && !userId) {
+            const servicesRes = await sql`SELECT title, price FROM services WHERE active = true ORDER BY sort_order ASC, created_at ASC` as ServiceResult[];
+            const services = servicesRes as Array<{ title: string; price: number }>;
+
+            const webInitialState: ConvState = {
+                clientName: null,
+                clientPhone: null,
+                interestedService: null,
+                detectedServices: [],
+                stage: 'greeting',
+                pendingDate: null,
+                pendingTime: null,
+                isAskingAlternatives: false,
+                targetDate: null,
+                previouslySuggestedCount: 0,
+                isAmbiguous: false,
+                rejectedDates: [],
+                requestedTime: null,
+                requestedAllOptions: false,
+                lastMessageChangedService: false
+            };
+
+            const responseText = generateResponse(webInitialState, services, [], false, true, false, []);
+            return sseStream(responseText);
+        }
+
+        if (messages.length === 0) return new Response(JSON.stringify({ error: "Empty conversation" }), { status: 400, headers: corsHeaders });
+
+        const servicesRes = await sql`SELECT title, price FROM services WHERE active = true ORDER BY sort_order ASC, created_at ASC` as ServiceResult[];
+        const services = servicesRes as Array<{ title: string; price: number }>;
         const state = extractState(messages, services);
 
-        // Find availability
         const foundSlots: Array<{ date: string, time: string }> = [];
         if (state.stage === 'availability_proposal' && state.interestedService) {
-            const searchDate = state.targetDate ? new Date(state.targetDate) : new Date();
-            if (!state.targetDate) searchDate.setDate(searchDate.getDate() + 1);
+            let searchDate = new Date();
+            if (state.targetDate) {
+                const target = new Date(state.targetDate);
+                if (target > searchDate) searchDate = target;
+            } else {
+                searchDate.setDate(searchDate.getDate() + 1); // Mañana por defecto
+            }
 
-            // We skip slots already suggested
             let totalFoundToSkip = 0;
-            const slotsToFind = 1;
+            const targetCount = state.requestedAllOptions ? 5 : 1;
+            const maxDays = 60; // Buscar hasta 2 meses
 
-            for (let d = 0; d < 14 && foundSlots.length < slotsToFind; d++) {
+            for (let d = 0; d < maxDays && foundSlots.length < targetCount; d++) {
                 const dateStr = searchDate.toISOString().split('T')[0];
+                const dayOfWeek = searchDate.getUTCDay();
 
-                // Skip rejected dates
+                // Saltamos domingos (0) si la estética cierra
+                if (dayOfWeek === 0) {
+                    searchDate.setDate(searchDate.getDate() + 1);
+                    continue;
+                }
+
                 if (state.rejectedDates.includes(dateStr)) {
                     searchDate.setDate(searchDate.getDate() + 1);
                     continue;
                 }
 
-                const { rows: taken } = await pool.query<{ date_time: string }>(
-                    "SELECT date_time FROM appointments WHERE date_time::date = $1 AND status != 'canceled'",
-                    [dateStr]
-                );
+                const taken = await sql`SELECT date_time FROM appointments WHERE date_time::date = ${dateStr} AND status != 'canceled'` as AppointmentResult[];
                 const takenHours = new Set(taken.map(r => new Date(r.date_time).getUTCHours()));
 
-                // If user requested a specific time, check it first for this day
-                if (state.requestedTime) {
+                // Si el usuario pidió una hora específica, priorizamos ese bloque
+                if (state.requestedTime && !state.requestedAllOptions) {
                     const reqH = parseInt(state.requestedTime.split(':')[0]);
-                    if (reqH >= 10 && reqH <= 18 && !takenHours.has(reqH)) {
+                    if (reqH >= 10 && reqH <= 19 && !takenHours.has(reqH)) {
                         foundSlots.push({ date: dateStr, time: `${reqH.toString().padStart(2, '0')}:00` });
-                        if (foundSlots.length >= slotsToFind) break;
+                        if (foundSlots.length >= targetCount) break;
                     }
                 }
 
-                for (let h = 10; h <= 18; h++) {
-                    // Avoid duplicate if requestedTime was already found for this day
-                    if (state.requestedTime && parseInt(state.requestedTime.split(':')[0]) === h) continue;
-
+                // Horarios estándar de 10hs a 19hs
+                for (let h = 10; h <= 19; h++) {
+                    if (state.requestedTime && !state.requestedAllOptions && parseInt(state.requestedTime.split(':')[0]) === h) continue;
                     if (!takenHours.has(h)) {
-                        // Check if we already suggested this one in history
                         totalFoundToSkip++;
-                        if (totalFoundToSkip > state.previouslySuggestedCount) {
+                        // Si no estamos pidiendo "todos", saltamos los que ya sugerimos anteriormente
+                        if (state.requestedAllOptions || totalFoundToSkip > state.previouslySuggestedCount) {
                             foundSlots.push({ date: dateStr, time: `${h.toString().padStart(2, '0')}:00` });
-                            if (foundSlots.length >= slotsToFind) break;
+                            if (foundSlots.length >= targetCount) break;
                         }
                     }
                 }
@@ -394,76 +468,65 @@ export default async function handler(req: Request) {
             }
         }
 
-        const lastUserMsg = messages.filter(m => m.role === 'user').pop()?.content.toLowerCase() || "";
-        const userConfirms = /\b(si|sí|dale|ok|perfecto|bien|confirmar|confirmado)\b/i.test(lastUserMsg);
-        const userRejects = /\b(no|otro|cambiar|no puedo|busca|otra|me sirve)\b/i.test(lastUserMsg) || lastUserMsg.includes("no me sirve");
+        const lastUserMsg = messages.filter((m: { role: string }) => m.role === 'user').pop()?.content.toLowerCase() || "";
+        const userConfirms = /\b(si|sí|dale|ok|perfecto|bien|confirmar|confirmado|confirmo|claro|por supuesto|está bien|esta bien)\b/i.test(lastUserMsg);
+        const userRejects = /\b(no|otro|cambiar|no puedo|busca|otra|me sirve|no me sirve|mejor no)\b/i.test(lastUserMsg);
 
         let isBookingConfirmed = false;
-        // User is confirming BUT only if they didn't also reject it in the same message (e.g. "no me sirve")
-        if (state.stage === 'availability_proposal' && userConfirms && !userRejects && !state.isAmbiguous && state.pendingDate && state.pendingTime) {
+        if (state.stage === 'availability_proposal' && userConfirms && !userRejects && state.pendingDate && state.pendingTime) {
             const dateTimeStr = `${state.pendingDate}T${state.pendingTime}:00Z`;
+            const phoneForQueries = userId || state.clientPhone;
 
-            const { rows: leads } = await pool.query<{ id: string }>(
-                `SELECT id FROM leads WHERE contact_info->>'phone' = $1 LIMIT 1`,
-                [state.clientPhone]
-            );
-            const leadId = leads.length > 0 ? leads[0].id : null;
+            if (phoneForQueries) {
+                // ─── ROBUST LEAD RESOLUTION ───
+                let leadId: string | null = null;
+                const leads = await sql`
+                SELECT id 
+                FROM leads 
+                WHERE regexp_replace(contact_info->>'phone', '\\D', '', 'g') = ${phoneForQueries.replace(/\D/g, '')}
+                   OR regexp_replace(contact_info->>'phone', '\\D', '', 'g') LIKE ${'%' + phoneForQueries.replace(/\D/g, '')}
+                LIMIT 1
+            ` as LeadIdResult[];
 
-            if (leadId) {
-                // verify not already booked
-                const { rows: existingApps } = await pool.query(
-                    `SELECT id FROM appointments WHERE lead_id = $1 AND date_time = $2 AND status != 'canceled'`,
-                    [leadId, dateTimeStr]
-                );
+                leadId = leads.length > 0 ? leads[0].id : null;
 
-                if (existingApps.length === 0) {
-                    await pool.query(
-                        "INSERT INTO appointments (lead_id, date_time, service_type, status) VALUES ($1, $2, $3, 'pending')",
-                        [leadId, dateTimeStr, state.interestedService]
-                    );
+                if (!leadId) {
+                    const newLead = await sql`
+                    INSERT INTO leads (client_name, contact_info, status, intent_score, organization_id, chat_history)
+                    VALUES (${state.clientName || 'Cliente WhatsApp'}, ${JSON.stringify({ phone: phoneForQueries, source: 'whatsapp' })}, 'qualified', 90, ${DEFAULT_ORG_ID}, ${JSON.stringify(messages)}::jsonb)
+                    RETURNING id
+                ` as LeadIdResult[];
+                    leadId = newLead[0].id;
                 }
-                isBookingConfirmed = true;
+
+                if (leadId) {
+                    const existingApps = await sql`SELECT id FROM appointments WHERE lead_id = ${leadId} AND date_time = ${dateTimeStr} AND status != 'canceled'` as LeadIdResult[];
+                    if (existingApps.length === 0) {
+                        await sql`INSERT INTO appointments (lead_id, organization_id, date_time, service_type, status) 
+                            VALUES (${leadId}, ${DEFAULT_ORG_ID}, ${dateTimeStr}, ${state.interestedService}, 'confirmed')`;
+                    } else {
+                        await sql`UPDATE appointments SET status = 'confirmed' WHERE id = ${(existingApps as { id: string }[])[0].id}`;
+                    }
+                    isBookingConfirmed = true;
+                }
             }
         }
 
-        // Generate response
-        const responseText = generateResponse(state, services, foundSlots, isBookingConfirmed);
+        const responseText = generateResponse(state, services, foundSlots, isBookingConfirmed, isFirstInteraction, !!userId, messages);
+        const phoneToUse = (state.clientPhone === 'CONFIRMED_CURRENT' ? userId : state.clientPhone) || userId;
 
-        // --- EARLY UPSERT FOR LEADS (Guard Rails Passed) ---
-        if (state.interestedService && state.clientName && state.clientPhone) {
-            const contactValue = state.clientPhone;
-            // Append assistant's soon-to-be response to history so it's perfectly in sync in DB!
+        if (phoneToUse) {
             const newHistory = [...messages, { role: 'assistant', content: responseText }];
-            const chatHistoryJson = JSON.stringify(newHistory);
-
-            const { rows: existingLeads } = await pool.query<{ id: string }>(
-                `SELECT id FROM leads WHERE contact_info->>'phone' = $1`,
-                [contactValue]
-            );
-
             const intentScore = isBookingConfirmed ? 100 : 80;
-
-            if (existingLeads.length > 0) {
-                await pool.query(
-                    `UPDATE leads SET client_name = $1, intent_score = $2, chat_history = $3::jsonb WHERE id = $4`,
-                    [state.clientName, intentScore, chatHistoryJson, existingLeads[0].id]
-                );
-            } else {
-                await pool.query(
-                    `INSERT INTO leads (client_name, contact_info, status, intent_score, chat_history) VALUES ($1, $2, 'qualified', $3, $4::jsonb)`,
-                    [state.clientName, JSON.stringify({ phone: contactValue }), intentScore, chatHistoryJson]
-                );
-            }
+            const finalClientName = state.clientName || "Cliente WhatsApp";
+            const existingLeads = await sql`SELECT id FROM leads WHERE contact_info->>'phone' = ${phoneToUse}`;
+            if ((existingLeads as any[]).length > 0) await sql`UPDATE leads SET client_name = ${finalClientName}, intent_score = ${intentScore}, chat_history = ${JSON.stringify(newHistory)}::jsonb WHERE id = ${(existingLeads as any[])[0].id}`;
+            else await sql`INSERT INTO leads (organization_id, client_name, contact_info, status, intent_score, chat_history) VALUES (${DEFAULT_ORG_ID}, ${finalClientName}, ${JSON.stringify({ phone: phoneToUse })}, 'qualified', ${intentScore}, ${JSON.stringify(newHistory)}::jsonb)`;
         }
-        // ---------------------------------------------------
 
-        await pool.end();
+        if (userId) {
+            return new Response(JSON.stringify({ responseText: formatForWhatsApp(responseText), rawResponse: responseText, state: { stage: state.stage, clientName: state.clientName, service: state.interestedService } }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        }
         return sseStream(responseText);
-
-    } catch (e: unknown) {
-        if (pool) await pool.end();
-        const error = e as Error;
-        console.error("Chat error:", error.message);
-        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
-    }
+    } catch (e) { return returnFallback(e instanceof Error ? e.message : String(e)); }
 }
